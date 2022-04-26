@@ -1,0 +1,22 @@
+{
+  "name": "docker-classes",
+  "description": "Opinionated wrapper classes for the Docker API using dockerode",
+  "version": "0.5.0",
+  "main": "src/index.ts",
+  "repository": "",
+  "license": "MIT",
+  "scripts": {
+    "test": "jest",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "dockerode": "^3.3.1"
+  },
+  "devDependencies": {
+    "@types/dockerode": "^3.3.8",
+    "eslint": "^8.14.0",
+    "jest": "^28.0.1",
+    "prettier": "^2.6.2",
+    "typescript": "^4.6.3"
+  }
+}
