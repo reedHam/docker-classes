@@ -3,6 +3,7 @@
   "description": "Opinionated wrapper classes for the Docker API using dockerode",
   "version": "0.5.0",
   "main": "src/index.ts",
+  "type": "module",
   "repository": "",
   "license": "MIT",
   "scripts": {
@@ -10,7 +11,10 @@
     "build": "tsc"
   },
   "dependencies": {
-    "dockerode": "^3.3.1"
+    "@typescript-eslint/eslint-plugin": "^5.21.0",
+    "@typescript-eslint/parser": "^5.21.0",
+    "dockerode": "^3.3.1",
+    "ts-jest": "^27.1.4"
   },
   "devDependencies": {
     "@types/dockerode": "^3.3.8",
