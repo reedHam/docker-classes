@@ -1,4 +1,6 @@
+import 'dotenv/config';
 import Docker from 'dockerode';
+
 export const DOCKER_CONN = new Docker({ socketPath: '/var/run/docker.sock' });
 
 export async function getContainerByName(name: string) {
