@@ -21,10 +21,22 @@ export class DockerNetwork {
         });
     }
 
-    async getNetwork(): Promise<Docker.Network | null> {
+    async getNetwork(): Promise<Docker.Network> {
+        if (this.network) {
+            return this.network;
+        } else {
+            const network = await DockerNetwork.getNetwork(this.options.Name);
+            if (network) {
+                this.network = network;
+            }
+        }
+        throw new Error(`Could not get network: ${this.options.Name}`);
+    }
+    
+    static async getNetwork(name: string): Promise<Docker.Network | null> {
         const [ networkInfo ] = await DOCKER_CONN.listNetworks({
             filters: {
-                name: [this.options.Name]
+                name: [name]
             }
         });
         

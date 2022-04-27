@@ -1,4 +1,5 @@
-import Docker from 'dockerode';
+import { DockerNetwork } from './DockerNetwork';
+import Docker, { Network } from 'dockerode';
 
 import {
     DOCKER_CONN,
@@ -123,6 +124,22 @@ export class DockerContainer {
             });
         }
         return this.container;
+    }
+
+    async connectToNetwork(network: string | Network) {
+        if (typeof network === 'string') {
+            const networkReturn = await DockerNetwork.getNetwork(network);
+            if (!networkReturn) throw new Error(`Network ${network} not found`);
+            network = networkReturn;
+        }
+        
+        if (network && this.container) {
+            await network.connect(this.container);
+        } else if (!network) {
+            throw new Error(`Network not found while trying to connect to it: ${this.containerName}`);
+        } else if (!this.container) {
+            throw new Error(`Container not found while trying to connect to network: ${network} ${this.containerName}`);
+        }
     }
 
     async remove() {
