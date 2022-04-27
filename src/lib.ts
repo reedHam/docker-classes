@@ -34,6 +34,17 @@ export async function isContainerRunning(container: Docker.Container) {
     return !!containerInfo?.State.Running;
 }
 
+export async function isContainerReady(container: Docker.Container, timeout = 4000) {
+    // Use container health check to check if container is ready
+    // Integrate with retry and timeouts.
+    const checkReady = async () => {
+        const containerInfo = await container.inspect();
+        return !!containerInfo?.State.Running && (!containerInfo?.State.Health || containerInfo.State.Health.Status === 'healthy');
+    };
+
+    return await waitUntil(checkReady, timeout);
+}
+
 export async function waitUntil(callback: () => Promise<boolean>, timeout: number = 5000) {
     let totalWaitTime = 0;
     let interval = 100;
@@ -49,13 +60,3 @@ export async function waitUntil(callback: () => Promise<boolean>, timeout: numbe
     return false;
 }
 
-export async function isContainerReady(container: Docker.Container, timeout = 4000) {
-    // Use container health check to check if container is ready
-    // Integrate with retry and timeouts.
-    const checkReady = async () => {
-        const containerInfo = await container.inspect();
-        return !!containerInfo?.State.Running && (!containerInfo?.State.Health || containerInfo.State.Health.Status === 'healthy');
-    };
-
-    return await waitUntil(checkReady, timeout);
-}

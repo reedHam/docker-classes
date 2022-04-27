@@ -1,5 +1,5 @@
 import Docker from 'dockerode';
-import { Stream } from 'stream';
+
 import {
     DOCKER_CONN,
     getContainerByName,
@@ -14,7 +14,7 @@ export type DockerContainerOptions = {
     dockerfile?: string;
     mounts?: Docker.HostConfig['Binds'];
     volumes?: Docker.ContainerCreateOptions['Volumes'];
-    portBindings?: Docker.PortBinding[];
+    portBindings?: Docker.HostConfig['PortBindings'];
     readyFunction?: (...args: any[]) => Promise<any>;
     cmd?: Docker.ContainerCreateOptions['Cmd'];
 };
