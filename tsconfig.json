@@ -2,12 +2,12 @@
     "compilerOptions": {
       "outDir": "./dist",
       "allowJs": true,
-      "target": "esnext",
-      "module": "esnext",
-      "moduleResolution": "node",
+      "target": "ESNext",
+      "module": "ESNext",
+      "esModuleInterop": true,
+      "moduleResolution": "Node",
       "emitDecoratorMetadata": true,
       "experimentalDecorators": true,
-      "allowSyntheticDefaultImports": true,
       "declaration": false,
       "sourceMap": true,
       "downlevelIteration": true,
@@ -17,7 +17,7 @@
       "./src/**/*",
       "./test/**/*"
     ],
-    "exclude": [
-        "node_modules"
-    ]
+    "ts-node": {
+      "esm": true
+    }
   }

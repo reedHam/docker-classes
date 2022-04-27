@@ -1,13 +1,15 @@
 import Docker from 'dockerode';
+import { Stream } from 'stream';
 import {
     DOCKER_CONN,
     getContainerByName,
     isContainerReady,
-    isContainerRunning
+    isContainerRunning,
+    resolveDockerStream,
+    waitUntil
 } from './lib';
 
 export type DockerContainerOptions = {
-    imageName: string;
     containerName?: string;
     dockerfile?: string;
     mounts?: Docker.HostConfig['Binds'];
@@ -22,37 +24,68 @@ export class DockerContainer {
     dockerfile;
     cmd;
     container: Docker.Container | null = null;
+    image: Docker.Image;
     containerName;
     mounts;
     volumes;
     portBindings: Docker.PortBinding[] | undefined;
     readyFunction;
 
-    constructor(imageName: string, options: DockerContainerOptions) {
-        this.imageName = options.imageName;
-        this.dockerfile = options.dockerfile;
-        this.containerName = options.containerName || imageName;
-        this.mounts = options.mounts;
-        this.volumes = options.volumes;
-        this.readyFunction = options.readyFunction;
-        this.portBindings = options.portBindings;
-        this.cmd = options.cmd;
+    constructor(imageName: string, options?: DockerContainerOptions) {
+        if (!imageName) throw new Error('imageName is required');
+        this.imageName = imageName;
+        this.image = DOCKER_CONN.getImage(this.imageName);
+        this.dockerfile = options?.dockerfile;
+        this.containerName = options?.containerName || imageName.split(':')[0];
+        this.mounts = options?.mounts;
+        this.volumes = options?.volumes;
+        this.readyFunction = options?.readyFunction;
+        this.portBindings = options?.portBindings;
+        this.cmd = options?.cmd;
     }
 
-    get image() {
-        return DOCKER_CONN.getImage(this.imageName);
+    async imageExists() {
+        try {
+            return (await this.image.inspect()).RepoTags[0] === (this.imageName.includes(':') ? this.imageName : this.imageName + ':latest');
+        } catch (e) {
+            if (e instanceof Error) {
+                if (e.message.includes('HTTP code 404')) {
+                    return false;
+                } 
+            }
+            throw e;
+        }
     }
 
-    pullImage() {
-        return DOCKER_CONN.pull(this.imageName);
+    async pullImage() {
+        return resolveDockerStream<{ status: string }>(await DOCKER_CONN.pull(this.imageName) as NodeJS.ReadableStream);
     }
 
-    async isReady(timeout?: number) {
-        return this.container
-            ? this.readyFunction
-                ? this.readyFunction(this.container)
-                : isContainerReady(this.container, timeout)
-            : false;
+    async waitReady(timeout?: number) {
+        if (this.container) {
+            if (this.readyFunction) {
+                return this.readyFunction(this.container);
+            } else {
+                return isContainerReady(this.container, timeout);
+            }
+        }
+        throw new Error('Container not found while trying to check if its ready');
+    }
+
+    async waitRemoved(timeout = 5000) {
+        if (this.container) {
+            await waitUntil(async () => {
+                try {
+                    await this.getInfo();
+                    return false;
+                } catch (e) {
+                    if (e instanceof Error && e.message.includes('404')) {
+                        return true;
+                    }
+                    throw e;
+                }
+            }, timeout);
+        }
     }
 
     async isRunning() {
@@ -60,10 +93,18 @@ export class DockerContainer {
     }
 
     async getContainer() {
-        return getContainerByName(this.containerName);
+        const container = await getContainerByName(this.containerName);
+  
+        if (container) {
+            this.container = container;
+            return this.container;
+        } else {
+            return null;
+        }
     }
 
     async getInfo() {
+        if (!this.container) this.container = await this.getContainer();
         return this.container ? await this.container.inspect() : null;
     }
 
@@ -87,20 +128,31 @@ export class DockerContainer {
     async remove() {
         if (this.container) {
             return this.container.remove({ force: true });
+        } else {
+            throw new Error('Container not found while trying to remove');
         }
     }
 
     async start() {
-        if (!this.image) {
+        if (!await this.imageExists()) {
             await this.pullImage();
         }
-
-        if (!this.container) {
+        
+        if (!await this.getContainer()) {
             await this.createContainer();
         }
 
         if (this.container) {
-            await this.container.start();
+            try {
+                await this.container.start();
+            } catch (e) {
+                if (e instanceof Error && e.message.includes('304')) {
+                    return;
+                }
+                throw e;
+            }
+        } else {
+            throw new Error('Container not found while trying to start');
         }
     }
 }

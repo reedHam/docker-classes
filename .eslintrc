@@ -1,7 +1,7 @@
 {
     "env": {
         "node": true,
-        "es2022": true,
+        "esnext": true,
         "jest": true
     },
     "extends": [
@@ -23,7 +23,8 @@
 
 			"rules": {
 				"@typescript-eslint/no-unsafe-assignment": "warn",
-				"@typescript-eslint/no-unsafe-argument": "warn"
+				"@typescript-eslint/no-unsafe-argument": "warn",
+                "@typescript-eslint/no-non-null-assertion": "off"
             },
 
 			"parserOptions": {
