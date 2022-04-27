@@ -1,14 +1,17 @@
 {
   "name": "docker-classes",
   "description": "Opinionated wrapper classes for the Docker API using dockerode",
-  "version": "0.5.0",
-  "main": "src/index.ts",
+  "version": "1.0.0-0",
+  "np": {
+    "contents": "dist"
+  },
   "type": "module",
   "repository": "",
   "license": "MIT",
   "scripts": {
     "test": "jest",
-    "build": "tsc"
+    "build": "tsc",
+    "prepublish": "yarn test && yarn build"
   },
   "dependencies": {
     "@typescript-eslint/eslint-plugin": "^5.21.0",
