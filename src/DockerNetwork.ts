@@ -1,7 +1,7 @@
 import Docker from 'dockerode';
 import { DOCKER_CONN } from './lib';
 
-export default class DockerNetwork {
+export class DockerNetwork {
     network: Docker.Network | null = null;
     options: Docker.NetworkCreateOptions;
 
