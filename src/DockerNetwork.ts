@@ -2,10 +2,12 @@ import Docker from 'dockerode';
 import { DOCKER_CONN } from './lib';
 
 export class DockerNetwork {
+    name: string;
     network: Docker.Network | null = null;
     options: Docker.NetworkCreateOptions;
 
     constructor(options: Docker.NetworkCreateOptions) {
+        this.name = options.Name;
         this.options = options;
     }
 

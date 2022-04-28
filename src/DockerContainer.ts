@@ -4,9 +4,10 @@ import Docker, { Network } from 'dockerode';
 import {
     DOCKER_CONN,
     getContainerByName,
+    imageExists,
     isContainerReady,
     isContainerRunning,
-    resolveDockerStream,
+    pullImage,
     waitUntil
 } from './lib';
 
@@ -43,23 +44,6 @@ export class DockerContainer {
         this.readyFunction = options?.readyFunction;
         this.portBindings = options?.portBindings;
         this.cmd = options?.cmd;
-    }
-
-    async imageExists() {
-        try {
-            return (await this.image.inspect()).RepoTags[0] === (this.imageName.includes(':') ? this.imageName : this.imageName + ':latest');
-        } catch (e) {
-            if (e instanceof Error) {
-                if (e.message.includes('HTTP code 404')) {
-                    return false;
-                } 
-            }
-            throw e;
-        }
-    }
-
-    async pullImage() {
-        return resolveDockerStream<{ status: string }>(await DOCKER_CONN.pull(this.imageName) as NodeJS.ReadableStream);
     }
 
     async waitReady(timeout?: number) {
@@ -151,8 +135,8 @@ export class DockerContainer {
     }
 
     async start() {
-        if (!await this.imageExists()) {
-            await this.pullImage();
+        if (!await imageExists(this.imageName)) {
+            await pullImage(this.imageName);
         }
         
         if (!await this.getContainer()) {
