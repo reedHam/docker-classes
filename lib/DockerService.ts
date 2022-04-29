@@ -1,5 +1,5 @@
 import Docker from 'dockerode';
-import { DOCKER_CONN, isServiceReady, waitUntil, getServiceContainers, getServiceByName } from './lib';
+import { DOCKER_CONN, isServiceReady, waitUntil, getServiceContainers, getServiceByName } from './utils';
 
 
 export class DockerService {

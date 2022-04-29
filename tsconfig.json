@@ -14,7 +14,7 @@
       "strict": true
     },
     "include": [
-      "./src/**/*"
+      "lib/**/*"
     ],
     "ts-node": {
       "esm": true

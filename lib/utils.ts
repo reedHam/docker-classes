@@ -3,6 +3,7 @@ import Docker, { Container } from 'dockerode';
 import { setTimeout } from 'timers/promises';
 import stream from 'stream';
 
+
 export const DOCKER_CONN = new Docker({
     socketPath: process.env.DOCKER_SOCKET_PATH || '/var/run/docker.sock',
 });
@@ -158,7 +159,9 @@ const parseStreamChunk = (buffer: Buffer) => {
     return [dataArr, errArray];
 };
 
-export async function* demuxDockerStream(stream: stream.Duplex): AsyncIterableIterator<[ Buffer | null, Buffer | null]> {
+type StreamResponse = AsyncIterableIterator<[stdout: Buffer, stderr: null] | [stdout: null, stderr: Buffer]>;
+
+export async function* demuxDockerStream(stream: stream.Duplex): StreamResponse {
     let buffer = Buffer.alloc(0);
     for await (const chunk of stream) {
         buffer = Buffer.concat([buffer, chunk]);
@@ -204,5 +207,5 @@ export async function runExecStream(container: Container, cmd: string[]) {
         AttachStderr: true,
     });
     const execProcessStream = await execProcess.start({});
-    return demuxDockerStream(execProcessStream) as AsyncIterableIterator<[ stdout: Buffer | null, stderr: Buffer | null]>;
+    return demuxDockerStream(execProcessStream) as StreamResponse;
 }

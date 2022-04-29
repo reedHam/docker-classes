@@ -1,5 +1,5 @@
 import Docker from 'dockerode';
-import { DOCKER_CONN } from './lib';
+import { DOCKER_CONN } from './utils';
 
 export class DockerNetwork {
     name: string;

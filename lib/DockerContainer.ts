@@ -1,6 +1,6 @@
 import { DockerNetwork } from './DockerNetwork';
 import Docker, { Network } from 'dockerode';
-import { runExec, runExecStream } from './lib';
+import { runExec, runExecStream } from './utils';
 
 
 import {
@@ -11,7 +11,7 @@ import {
     isContainerRunning,
     pullImage,
     waitUntil
-} from './lib';
+} from './utils';
 
 export type DockerContainerOptions = {
     containerName?: string;
