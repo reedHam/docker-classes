@@ -3,11 +3,13 @@ import { DOCKER_CONN, isServiceReady, waitUntil, getServiceContainers, getServic
 
 
 export class DockerService {
+    name;
     options;
     service: Docker.Service | null = null;
     readyFunction;
 
-    constructor(options: Docker.CreateServiceOptions, readyFunction?:  (...args: any[]) => Promise<any>) {
+    constructor(options: Docker.CreateServiceOptions, readyFunction?: (...args: any[]) => Promise<any>) {
+        this.name = options.Name;
         this.options = options;
         this.readyFunction = readyFunction;
     }

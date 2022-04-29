@@ -1,7 +1,7 @@
 import 'dotenv/config';
-import Docker from 'dockerode';
+import Docker, { Container } from 'dockerode';
 import { setTimeout } from 'timers/promises';
-
+import stream from 'stream';
 
 export const DOCKER_CONN = new Docker({
     socketPath: process.env.DOCKER_SOCKET_PATH || '/var/run/docker.sock',
@@ -124,4 +124,85 @@ export async function imageExists(name: string) {
 
 export async function pullImage(name: string) {
     return resolveDockerStream<{ status: string }>(await DOCKER_CONN.pull(name) as NodeJS.ReadableStream);
+}
+
+enum STREAM_TYPE {
+    STDIN = 0,
+    STDOUT = 1,
+    STDERR = 2,
+}
+
+/*
+ * first 8 bytes are the header
+ * stream type, 0, 0, 0, size1, size2, size3, size4
+ * last 4 bytes are a uint32 encoded as big endian
+ */
+const parseStreamChunk = (buffer: Buffer) => {
+    const dataArr = [];
+    const errArray = [];
+
+    while (buffer.length > 0) {
+        const header = buffer.slice(0, 8);
+        const type = header.readUInt8(0);
+        const size = header.readUInt32BE(4);
+        const data = buffer.slice(8, 8 + size);
+        buffer = buffer.slice(8 + size);
+
+        if (type === STREAM_TYPE.STDERR) {
+            errArray.push(data);
+        } else {
+            dataArr.push(data);
+        }
+    }
+
+    return [dataArr, errArray];
+};
+
+export async function* demuxDockerStream(stream: stream.Duplex): AsyncIterableIterator<[ Buffer | null, Buffer | null]> {
+    let buffer = Buffer.alloc(0);
+    for await (const chunk of stream) {
+        buffer = Buffer.concat([buffer, chunk]);
+        const [dataArr, errArr] = parseStreamChunk(buffer);
+        for (const data of dataArr) {
+            yield [data, null];
+        }
+        for (const err of errArr) {
+            yield [null, err];
+        }
+    }
+}
+
+
+export async function runExec(container: Container, cmd: string[]) {
+    let execProcess = await container.exec({
+        Cmd: cmd,
+        AttachStdout: true,
+        AttachStderr: true,
+    });
+    const execProcessStream = await execProcess.start({});
+
+    let stdOut: string[] = [];
+    let stdErr: string[] = [];
+    for await (const [data, err] of demuxDockerStream(execProcessStream)) {
+        data && stdOut.push(data.toString());
+        err && stdErr.push(err.toString());
+    }
+
+    return [
+        stdOut,
+        stdErr,
+    ] as [
+        stdOut: string[],
+        stdErr: string[]
+    ];
+}
+
+export async function runExecStream(container: Container, cmd: string[]) {
+    let execProcess = await container.exec({
+        Cmd: cmd,
+        AttachStdout: true,
+        AttachStderr: true,
+    });
+    const execProcessStream = await execProcess.start({});
+    return demuxDockerStream(execProcessStream) as AsyncIterableIterator<[ stdout: Buffer | null, stderr: Buffer | null]>;
 }

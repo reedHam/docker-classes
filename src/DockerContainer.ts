@@ -1,5 +1,7 @@
 import { DockerNetwork } from './DockerNetwork';
 import Docker, { Network } from 'dockerode';
+import { runExec, runExecStream } from './lib';
+
 
 import {
     DOCKER_CONN,
@@ -27,7 +29,7 @@ export class DockerContainer {
     cmd;
     container: Docker.Container | null = null;
     image: Docker.Image;
-    containerName;
+    name;
     mounts;
     volumes;
     portBindings: Docker.PortBinding[] | undefined;
@@ -38,7 +40,7 @@ export class DockerContainer {
         this.imageName = imageName;
         this.image = DOCKER_CONN.getImage(this.imageName);
         this.dockerfile = options?.dockerfile;
-        this.containerName = options?.containerName || imageName.split(':')[0];
+        this.name = options?.containerName || imageName.split(':')[0];
         this.mounts = options?.mounts;
         this.volumes = options?.volumes;
         this.readyFunction = options?.readyFunction;
@@ -78,7 +80,7 @@ export class DockerContainer {
     }
 
     async getContainer() {
-        const container = await getContainerByName(this.containerName);
+        const container = await getContainerByName(this.name);
   
         if (container) {
             this.container = container;
@@ -98,7 +100,7 @@ export class DockerContainer {
         if (!this.container) {
             this.container = await DOCKER_CONN.createContainer({
                 Image: this.imageName,
-                name: this.containerName,
+                name: this.name,
                 Volumes: this.volumes,
                 HostConfig: {
                     Binds: this.mounts,
@@ -120,9 +122,9 @@ export class DockerContainer {
         if (network && this.container) {
             await network.connect(this.container);
         } else if (!network) {
-            throw new Error(`Network not found while trying to connect to it: ${this.containerName}`);
+            throw new Error(`Network not found while trying to connect to it: ${this.name}`);
         } else if (!this.container) {
-            throw new Error(`Container not found while trying to connect to network: ${network} ${this.containerName}`);
+            throw new Error(`Container not found while trying to connect to network: ${network} ${this.name}`);
         }
     }
 
@@ -156,4 +158,22 @@ export class DockerContainer {
             throw new Error('Container not found while trying to start');
         }
     }
+
+    async runExec(cmd: string[]) {
+        if (this.container) {
+            return runExec(this.container, cmd);
+        } else {
+            throw new Error('Container not found while trying to run exec');
+        }
+    }
+
+    async execStream(cmd: string[]) {
+        if (this.container) {
+            return runExecStream(this.container, cmd);
+        } else {
+            throw new Error('Container not found while trying to run exec');
+        }
+    }
 }
+
+

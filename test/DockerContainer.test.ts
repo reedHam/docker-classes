@@ -1,36 +1,27 @@
-import { DockerContainer } from "../src";
+import { DockerContainer, imageExists, pullImage, resolveDockerStream, runExec, runExecStream } from "../src";
 import { randomUUID } from 'crypto';
 import path from "path";
 import { DOCKER_CONN } from "../src";
+import stream from 'stream';
 
 const TEST_DATA_DIR = './docker-test-data';
 
 jest.setTimeout(30000);
 
 test("Checks if an image exists", async () => {
-    async function testImageName(name: string) {
-        const container = new DockerContainer(name);
-        return container.imageExists();
-    }
-    
-    expect(await testImageName("alpine")).toBeTruthy();
-    expect(await testImageName("alpine:latest")).toBeTruthy();
-    expect(await testImageName("alpine:invalid")).toBeFalsy();
-    expect(await testImageName("invalid-image-name")).toBeFalsy();
+    expect(await imageExists("alpine")).toBeTruthy();
+    expect(await imageExists("alpine:latest")).toBeTruthy();
+    expect(await imageExists("alpine:invalid")).toBeFalsy();
+    expect(await imageExists("invalid-image-name")).toBeFalsy();
 });
 
 test("Pulls a docker image", async () => {
-    const container = new DockerContainer("alpine:latest");
-
-    const pullResponse = await container.pullImage();
+    const pullResponse = await pullImage("alpine:latest");
     expect(pullResponse).toBeInstanceOf(Array);
     expect(pullResponse[0].status).toBe("Pulling from library/alpine");
     expect(pullResponse[pullResponse.length - 1].status).toBe("Status: Image is up to date for alpine:latest");
-
-    const imageName = "invalid-image-name";
-    const testContainer = new DockerContainer(imageName);
-    
-    await expect(testContainer.pullImage()).rejects.toThrowError(/HTTP code 404/);
+    await expect(pullImage("invalid-image-name")).rejects.toThrowError(/HTTP code 404/);
+    await expect(pullImage("ALPINE")).rejects.toThrowError(/HTTP code 400/);
 });
 
 test("Creates a container", async () => {
@@ -38,9 +29,14 @@ test("Creates a container", async () => {
     expect(container.container).toBeNull();
     await container.createContainer();
     expect(container.container).not.toBeNull();
+    await container.remove();
+    await container.waitRemoved();
+    expect(await container.getContainer()).toBeNull();
 });
 
-test("Starts and removes a container", async () => {
+
+
+async function createWaitingContainer() {
     const uuid = randomUUID();
     const container = new DockerContainer(
         "alpine:latest",
@@ -58,11 +54,57 @@ test("Starts and removes a container", async () => {
     expect(container.container).not.toBeNull();
     expect(await container.isRunning()).toBeTruthy();
     expect(container.container).not.toBeNull();
-    expect(container.containerName).toBe(uuid);
+    expect(container.name).toBe(uuid);
     expect(path.basename((await container.container!.inspect()).Name)).toBe(uuid);
-    
+    return container;
+}
+
+async function cleanUpContainer(container: DockerContainer) {
     await container.remove();
     await container.waitRemoved();
     expect(await container.getContainer()).toBeNull();
+}
+
+test("Starts and removes a container", async () => {
+    const container = await createWaitingContainer();
+    await cleanUpContainer(container);
+});
+
+test("Runs a command on a container", async () => {
+    const container = await createWaitingContainer();
+    try {
+        const realContainer = await container.getContainer();
+        expect(realContainer).not.toBeNull();
+
+        const [stdout, stdErr] = await runExec(realContainer!, ["echo", "Hello World!"]);
+        expect(stdout.toString()).toBe("Hello World!\n");
+        expect(stdErr.toString()).toBe("");
+
+    } catch (e) {
+        throw e;
+    } finally {
+        await cleanUpContainer(container);
+    }
+});
+
+test("Runs a command stream on a container", async () => {
+    const container = await createWaitingContainer();
+    try {
+        const realContainer = await container.getContainer();
+        expect(realContainer).not.toBeNull();
+
+        for await (const [stdout, stdErr] of await runExecStream(realContainer!, ["echo", "Hello World!"])) {
+            if (stdout) {
+                expect(stdout.toString()).toBe("Hello World!\n");
+            }
+            if (stdErr) {
+                expect(stdErr.toString()).toBe("");
+            }
+        }
+    } catch (e) {
+        throw e;
+    } finally {
+        await cleanUpContainer(container);
+    }
 });
 
