@@ -14,16 +14,25 @@ export class DockerService {
         this.readyFunction = readyFunction;
     }
 
-    async start() {
-        const serviceResponse = await DOCKER_CONN.createService(this.options);
-        if (serviceResponse.ID) {
-            const service = DOCKER_CONN.getService(serviceResponse.ID);
-            this.service = service;
-        } 
-        throw new Error(`Service could not be created: ${this.options.Name}.`);
+    async start() { 
+        try {
+            const serviceResponse = await DOCKER_CONN.createService(this.options);
+            if (serviceResponse.ID) {
+                await this.getService();
+            }
+        } catch (err) {
+            if ((err as {
+                statusCode: number;
+            }).statusCode === 409 && this.name) {
+                await this.getService();
+            } else {
+                throw err;
+            }
+        }
     }
 
-    async waitReady(timeout = 5000) {
+    async waitReady(timeout = 5000) {   
+        if (!this.service) await this.getService();
         if (this.service) {
             if (this.readyFunction) {
                 return this.readyFunction(this.service);
@@ -35,16 +44,18 @@ export class DockerService {
     }
 
     async remove() {
+        if (!this.service) await this.getService();
         if (this.service) {
             const serviceInfo = await this.service.inspect();
             if (serviceInfo) {
-                await this.service.remove();
+                return this.service.remove();
             }
         }
         throw new Error(`No service found while removing: ${this.options.Name}.`);
     }
 
     async waitRemoved(timeout = 5000) {
+        if (!this.service) await this.getService();
         if (this.service) {
             await waitUntil(async () => {
                 const serviceInfo = await this.service?.inspect();
@@ -55,6 +66,7 @@ export class DockerService {
     }
 
     async scale(replicas: number) {
+        if (!this.service) await this.getService();
         if (this.service) {
             await this.service.update({
                 mode: {
@@ -70,6 +82,7 @@ export class DockerService {
     async getService() {
         if (this.options.Name) {
             const service = await getServiceByName(this.options.Name);
+
             if (service) {
                 this.service = service;
                 return this.service;
@@ -79,6 +92,7 @@ export class DockerService {
     }
 
     async getContainers() {
+        if (!this.service) await this.getService();
         if (this.service) {
             const containers = await getServiceContainers(this.service);
             return containers;
@@ -86,4 +100,3 @@ export class DockerService {
         throw new Error(`No service found while trying to get containers: ${this.options.Name}.`);
     }
 }
-

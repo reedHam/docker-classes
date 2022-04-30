@@ -31,11 +31,8 @@ export async function getContainerByName(name: string) {
 }
 
 export async function getServiceByName(name: string) {
-    const [ serviceInfo ] = await DOCKER_CONN.listServices({
-        Filters: {
-            name: [name]
-        }
-    });
+    const serviceInfos = await DOCKER_CONN.listServices();
+    const serviceInfo = serviceInfos.find(service => service?.Spec?.Name === name);
     if (!serviceInfo?.ID) return null;
     return DOCKER_CONN.getService(serviceInfo.ID);
 }
@@ -65,7 +62,10 @@ export async function getServiceContainers(service: Docker.Service) {
         }
     });
 
-    const containerIDs = tasks.map(task => task.Status.ContainerStatus.ContainerID);
+    const containerIDs = tasks.filter(task =>
+        task?.Status?.ContainerStatus?.ContainerID
+        && task?.Status?.ContainerStatus?.ContainerID?.length > 0
+        && task?.Status?.State === "running").map(task => task?.Status?.ContainerStatus?.ContainerID);
     return Promise.all(containerIDs.map(containerID => DOCKER_CONN.getContainer(containerID)));
 }
 
@@ -86,10 +86,16 @@ export async function isContainerReady(container: Docker.Container, timeout = 40
 }
 
 export async function isServiceReady(service: Docker.Service, timeout = 4000) {
+    const serviceInfo = await service.inspect();
+    if (!serviceInfo) throw new Error('Service not found');
     const checkReady = async () => {
-        const containers = await getServiceContainers(service);
-        return (await Promise.all(containers.map(container => isContainerReady(container))))
-            .every(isReady => isReady);
+            const tasks: ListTaskReturn[] = await DOCKER_CONN.listTasks({
+                filters: {
+                    service: [serviceInfo.Spec.Name]
+                }
+            });
+
+        return tasks.filter(task => task?.Status?.State !== 'rejected').every(task => task?.Status?.State === 'running');
     };
 
     return waitUntil(checkReady, timeout);

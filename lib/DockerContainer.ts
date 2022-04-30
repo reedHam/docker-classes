@@ -120,7 +120,17 @@ export class DockerContainer {
         }
         
         if (network && this.container) {
-            await network.connect(this.container);
+            try {
+                await network.connect({
+                    Container: this.container.id
+                });
+            } catch (e) {
+                if (e instanceof Error && (e.message.includes('304') || e.message.includes('409'))) {
+                    return;
+                }
+                throw e; 
+            }
+
         } else if (!network) {
             throw new Error(`Network not found while trying to connect to it: ${this.name}`);
         } else if (!this.container) {
@@ -152,14 +162,14 @@ export class DockerContainer {
                 if (e instanceof Error && e.message.includes('304')) {
                     return;
                 }
-                throw e;
+                throw e; 
             }
         } else {
             throw new Error('Container not found while trying to start');
         }
     }
 
-    async runExec(cmd: string[]) {
+    async exec(cmd: string[]) {
         if (this.container) {
             return runExec(this.container, cmd);
         } else {

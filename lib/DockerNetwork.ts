@@ -1,5 +1,6 @@
 import Docker from 'dockerode';
 import { DOCKER_CONN } from './utils';
+import { waitUntil } from './utils';
 
 export class DockerNetwork {
     name: string;
@@ -12,7 +13,23 @@ export class DockerNetwork {
     }
 
     async create() {
-        this.network = await DOCKER_CONN.createNetwork(this.options);
+        try {
+            this.network = await DOCKER_CONN.createNetwork({
+                ...this.options,
+                Labels: {
+                    ...this.options.Labels,
+                    'com.docker.network.name': 'default'    
+                }
+            });
+        } catch (err) {
+            if ((err as {   
+                statusCode: number;
+            }).statusCode === 409) {
+                this.network = DOCKER_CONN.getNetwork(this.name);
+            } else {
+                throw err;
+            }
+        }
     }
 
     async connect(container: Docker.Container) {
@@ -30,6 +47,7 @@ export class DockerNetwork {
             const network = await DockerNetwork.getNetwork(this.options.Name);
             if (network) {
                 this.network = network;
+                return network;
             }
         }
         throw new Error(`Could not get network: ${this.options.Name}`);
@@ -41,20 +59,20 @@ export class DockerNetwork {
                 name: [name]
             }
         });
-        
+        console.log(networkInfo);
         return networkInfo?.Id ? DOCKER_CONN.getNetwork(networkInfo.Id) : null;
     }
 
     async prune() {
         if (this.network) {
-            const results = await DOCKER_CONN.pruneNetworks({
-                filters: {
-                    id: [this.network.id]
-                }
+            await waitUntil(async () => {
+                const results = await DOCKER_CONN.pruneNetworks({
+                    filters: {
+                        label: [`com.docker.network.name=${this.name}`]
+                    }
+                });
+                return !results?.NetworksDeleted?.length;
             });
-            if (results.NetworksDeleted.length === 0) {
-                throw new Error(`Could not prune network: ${this.options.Name}`);
-            }
         }
     }
 }
