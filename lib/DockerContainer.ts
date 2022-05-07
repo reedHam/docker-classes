@@ -21,11 +21,13 @@ export type DockerContainerOptions = {
     portBindings?: Docker.HostConfig['PortBindings'];
     readyFunction?: (...args: any[]) => Promise<any>;
     cmd?: Docker.ContainerCreateOptions['Cmd'];
+    env?: Docker.ContainerCreateOptions['Env'];
 };
 
 export class DockerContainer {
     imageName;
     dockerfile;
+    env;
     cmd;
     container: Docker.Container | null = null;
     image: Docker.Image;
@@ -46,6 +48,7 @@ export class DockerContainer {
         this.readyFunction = options?.readyFunction;
         this.portBindings = options?.portBindings;
         this.cmd = options?.cmd;
+        this.env = options?.env;
     }
 
     async waitReady(timeout?: number) {
@@ -107,6 +110,7 @@ export class DockerContainer {
                     PortBindings: this.portBindings,
                 },
                 Cmd: this.cmd,
+                Env: this.env
             });
         }
         return this.container;
