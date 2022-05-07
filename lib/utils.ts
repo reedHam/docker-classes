@@ -2,7 +2,7 @@ import 'dotenv/config';
 import Docker, { Container } from 'dockerode';
 import { setTimeout } from 'timers/promises';
 import stream from 'stream';
-
+import path from 'path';
 
 export const DOCKER_CONN = new Docker({
     socketPath: process.env.DOCKER_SOCKET_PATH || '/var/run/docker.sock',
@@ -190,19 +190,19 @@ export async function runExec(container: Container, cmd: string[]) {
     });
     const execProcessStream = await execProcess.start({});
 
-    let stdOut: string[] = [];
-    let stdErr: string[] = [];
+    let stdOut: Buffer[] = [];
+    let stdErr: Buffer[] = [];
     for await (const [data, err] of demuxDockerStream(execProcessStream)) {
-        data && stdOut.push(data.toString());
-        err && stdErr.push(err.toString());
+        data && stdOut.push(data);
+        err && stdErr.push(err);
     }
 
     return [
-        stdOut,
-        stdErr,
+        Buffer.concat(stdOut).toString(),
+        Buffer.concat(stdErr).toString(),
     ] as [
-        stdOut: string[],
-        stdErr: string[]
+        stdOut: string,
+        stdErr: string
     ];
 }
 
@@ -215,3 +215,16 @@ export async function runExecStream(container: Container, cmd: string[]) {
     const execProcessStream = await execProcess.start({});
     return demuxDockerStream(execProcessStream) as StreamResponse;
 }
+
+export async function runExecFile(container: Container, cmd: string, file: string, directory = '/') {
+    const filePath = path.join(directory, file);
+    const cmdWithFile = ['sh', '-c', `${cmd} 2>&1 > ${filePath}`];
+    let execProcess = await container.exec({
+        Cmd: cmdWithFile,
+        AttachStdout: false,
+        AttachStderr: false,
+    });
+    await execProcess.start({});
+    return filePath;
+}
+
