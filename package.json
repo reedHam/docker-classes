@@ -1,35 +1,35 @@
 {
-  "name": "docker-classes",
-  "description": "Opinionated high level wrapper classes for the Docker API using dockerode",
-  "version": "1.0.0-0",
-  "np": {
-    "contents": "dist"
-  },
-  "files": [
-    "./dist"
-  ],
-  "main": "./dist/index.js",
-  "type": "module",
-  "repository": "",
-  "license": "MIT",
-  "scripts": {
-    "test": "jest",
-    "build": "tsc --declaration",
-    "prepublish": "yarn test && yarn build"
-  },
-  "dependencies": {
-    "@typescript-eslint/eslint-plugin": "^5.21.0",
-    "@typescript-eslint/parser": "^5.21.0",
-    "dockerode": "^3.3.1",
-    "dotenv": "^16.0.0",
-    "ts-jest": "^27.1.4"
-  },
-  "devDependencies": {
-    "@types/dockerode": "^3.3.8",
-    "@types/jest": "^27.4.1",
-    "eslint": "^8.14.0",
-    "jest": "^27.0.0",
-    "prettier": "^2.6.2",
-    "typescript": "^4.6.3"
-  }
+    "name": "docker-classes",
+    "description": "Opinionated high level wrapper classes for the Docker API using dockerode",
+    "version": "1.0.1",
+    "np": {
+        "contents": "dist"
+    },
+    "files": [
+        "./dist"
+    ],
+    "main": "./dist/index.js",
+    "type": "module",
+    "repository": "",
+    "license": "MIT",
+    "scripts": {
+        "test": "jest",
+        "build": "tsc --declaration",
+        "prepublish": "yarn test && yarn build"
+    },
+    "dependencies": {
+        "dockerode": "^3.3.1",
+        "dotenv": "^16.0.0"
+    },
+    "devDependencies": {
+        "ts-jest": "^27.1.4",
+        "@typescript-eslint/eslint-plugin": "^5.23.0",
+        "@typescript-eslint/parser": "^5.23.0",
+        "@types/dockerode": "^3.3.8",
+        "@types/jest": "^27.4.1",
+        "eslint": "^8.14.0",
+        "jest": "^27.0.0",
+        "prettier": "^2.6.2",
+        "typescript": "^4.6.3"
+    }
 }
