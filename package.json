@@ -1,7 +1,7 @@
 {
     "name": "docker-classes",
     "description": "Opinionated high level wrapper classes for the Docker API using dockerode",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "np": {
         "contents": "dist"
     },
