@@ -206,14 +206,16 @@ export async function runExec(container: Container, cmd: string[]) {
     ];
 }
 
-export async function runExecStream(container: Container, cmd: string[]) {
+export async function* runExecStream(container: Container, cmd: string[]) {
     let execProcess = await container.exec({
         Cmd: cmd,
         AttachStdout: true,
         AttachStderr: true,
     });
     const execProcessStream = await execProcess.start({});
-    return demuxDockerStream(execProcessStream) as StreamResponse;
+    for await (const [data, err] of demuxDockerStream(execProcessStream)) {
+        yield [data, err];
+    }
 }
 
 export async function runExecFile(container: Container, cmd: string, file: string, directory = '/') {

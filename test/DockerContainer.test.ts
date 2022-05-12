@@ -1,7 +1,7 @@
-import { DockerContainer, imageExists, pullImage, resolveDockerStream, runExec, runExecStream } from "../src";
+import { DockerContainer, imageExists, pullImage, resolveDockerStream, runExec, runExecFile, runExecStream } from "../lib";
 import { randomUUID } from 'crypto';
 import path from "path";
-import { DOCKER_CONN } from "../src";
+import { DOCKER_CONN } from "../lib";
 import stream from 'stream';
 
 const TEST_DATA_DIR = './docker-test-data';
@@ -105,6 +105,29 @@ test("Runs a command stream on a container", async () => {
         throw e;
     } finally {
         await cleanUpContainer(container);
+    }
+});
+
+test("Runs a command on a file on a container", async () => {
+    const container = await createWaitingContainer();
+    try {
+        const realContainer = await container.getContainer();
+        expect(realContainer).not.toBeNull();
+        await runExecFile(realContainer!, "echo \"Hello World!\"", 'hello-world.txt');
+
+        for await (const [stdout, stdErr] of await getFileStream(realContainer!, '/hello-world.txt')) {
+            if (stdout) {
+                expect(stdout.toString()).toBe("Hello World!\n");
+            }
+            if (stdErr) {
+                expect(stdErr.toString()).toBe(""); 
+            }
+            break;
+        }
+    } catch (e) {
+        throw e;
+    } finally {
+        //await cleanUpContainer(container);
     }
 });
 
