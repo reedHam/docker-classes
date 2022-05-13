@@ -32,9 +32,5 @@ jobs:
           git config user.email "<>"
       
       - name: Commit Linting Fixes
-        run: |
-          git add ./lib ./test
-          git commit -m "Formatting & linting"
-          git push origin main
-      
+        run: git diff-index --quiet HEAD || (git commit -a -m'[bot] auto fix' --allow-empty && git push -f)
      
