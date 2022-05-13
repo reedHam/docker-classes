@@ -1,11 +1,11 @@
-import 'dotenv/config';
-import Docker, { Container } from 'dockerode';
-import { setTimeout } from 'timers/promises';
-import stream from 'stream';
-import path from 'path';
+import "dotenv/config";
+import Docker, { Container } from "dockerode";
+import { setTimeout } from "timers/promises";
+import stream from "stream";
+import path from "path";
 
 export const DOCKER_CONN = new Docker({
-    socketPath: process.env.DOCKER_SOCKET_PATH || '/var/run/docker.sock',
+    socketPath: process.env.DOCKER_SOCKET_PATH || "/var/run/docker.sock",
 });
 
 export function resolveDockerStream<T>(stream: NodeJS.ReadableStream) {
@@ -20,23 +20,24 @@ export function resolveDockerStream<T>(stream: NodeJS.ReadableStream) {
 }
 
 export async function getContainerByName(name: string) {
-    const [ containerInfo ] = await DOCKER_CONN.listContainers({
+    const [containerInfo] = await DOCKER_CONN.listContainers({
         all: true,
         filters: {
-            name: [name]
-        }
-    }); 
-    if (!containerInfo?.Id) return null; 
+            name: [name],
+        },
+    });
+    if (!containerInfo?.Id) return null;
     return DOCKER_CONN.getContainer(containerInfo.Id);
 }
 
 export async function getServiceByName(name: string) {
     const serviceInfos = await DOCKER_CONN.listServices();
-    const serviceInfo = serviceInfos.find(service => service?.Spec?.Name === name);
+    const serviceInfo = serviceInfos.find(
+        (service) => service?.Spec?.Name === name
+    );
     if (!serviceInfo?.ID) return null;
     return DOCKER_CONN.getService(serviceInfo.ID);
 }
-
 
 export type ListTaskReturn = {
     ID: string;
@@ -47,26 +48,34 @@ export type ListTaskReturn = {
         ContainerStatus: {
             ContainerID: string;
             PID: number;
-        }
-    }
+        };
+    };
     DesiredState: string;
-}
+};
 
 export async function getServiceContainers(service: Docker.Service) {
     const serviceInfo = await service.inspect();
-    if (!serviceInfo) throw new Error('Service not found');
-    
+    if (!serviceInfo) throw new Error("Service not found");
+
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const tasks: ListTaskReturn[] = await DOCKER_CONN.listTasks({
         filters: {
-            service: [serviceInfo.Spec.Name]
-        }
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+            service: [serviceInfo.Spec.Name],
+        },
     });
 
-    const containerIDs = tasks.filter(task =>
-        task?.Status?.ContainerStatus?.ContainerID
-        && task?.Status?.ContainerStatus?.ContainerID?.length > 0
-        && task?.Status?.State === "running").map(task => task?.Status?.ContainerStatus?.ContainerID);
-    return Promise.all(containerIDs.map(containerID => DOCKER_CONN.getContainer(containerID)));
+    const containerIDs = tasks
+        .filter(
+            (task) =>
+                task?.Status?.ContainerStatus?.ContainerID &&
+                task?.Status?.ContainerStatus?.ContainerID?.length > 0 &&
+                task?.Status?.State === "running"
+        )
+        .map((task) => task?.Status?.ContainerStatus?.ContainerID);
+    return Promise.all(
+        containerIDs.map((containerID) => DOCKER_CONN.getContainer(containerID))
+    );
 }
 
 export async function isContainerRunning(container: Docker.Container) {
@@ -74,12 +83,19 @@ export async function isContainerRunning(container: Docker.Container) {
     return !!containerInfo?.State.Running;
 }
 
-export async function isContainerReady(container: Docker.Container, timeout = 4000) {
+export async function isContainerReady(
+    container: Docker.Container,
+    timeout = 4000
+) {
     // Use container health check to check if container is ready
     // Integrate with retry and timeouts.
     const checkReady = async () => {
         const containerInfo = await container.inspect();
-        return !!containerInfo?.State.Running && (!containerInfo?.State.Health || containerInfo.State.Health.Status === 'healthy');
+        return (
+            !!containerInfo?.State.Running &&
+            (!containerInfo?.State.Health ||
+                containerInfo.State.Health.Status === "healthy")
+        );
     };
 
     return waitUntil(checkReady, timeout);
@@ -87,50 +103,83 @@ export async function isContainerReady(container: Docker.Container, timeout = 40
 
 export async function isServiceReady(service: Docker.Service, timeout = 4000) {
     const serviceInfo = await service.inspect();
-    if (!serviceInfo) throw new Error('Service not found');
+    if (!serviceInfo) throw new Error("Service not found");
     const checkReady = async () => {
-            const tasks: ListTaskReturn[] = await DOCKER_CONN.listTasks({
-                filters: {
-                    service: [serviceInfo.Spec.Name]
-                }
-            });
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        const tasks: ListTaskReturn[] = await DOCKER_CONN.listTasks({
+            filters: {
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+                service: [serviceInfo.Spec.Name],
+            },
+        });
 
-        return tasks.filter(task => task?.Status?.State !== 'rejected').every(task => task?.Status?.State === 'running');
+        return tasks
+            .filter((task) => task?.Status?.State !== "rejected")
+            .every((task) => task?.Status?.State === "running");
     };
 
     return waitUntil(checkReady, timeout);
 }
 
-export async function waitUntil(callback: () => Promise<boolean>, timeout: number = 5000) {
-    let totalWaitTime = 0;
-    let interval = 100;
-    while (totalWaitTime < timeout) {
+export async function waitUntil(
+    callback: () => Promise<boolean>,
+    timeout = 5000,
+    interval = 200
+) {
+    const start = Date.now();
+    while (Date.now() - start < timeout) {
         const isReady = await callback();
         if (isReady) {
             return true;
         }
         await setTimeout(interval);
-        totalWaitTime += interval;
-        interval += 100;
     }
     return false;
 }
 
+export async function tryUntil<T>(
+    functionToTry: () => Promise<T> | T,
+    timeout = 5000,
+    interval = 200
+): Promise<T> {
+    const start = Date.now();
+    while (true) {
+        try {
+            const res = functionToTry();
+            if (res instanceof Promise) {
+                return await res;
+            } else {
+                return Promise.resolve(res);
+            }
+        } catch (e) {
+            if (Date.now() - start > timeout) {
+                throw e;
+            }
+            await setTimeout(interval);
+        }
+    }
+}
+
 export async function imageExists(name: string) {
     try {
-        return (await DOCKER_CONN.getImage(name).inspect()).RepoTags[0] === (name.includes(':') ? name : name + ':latest');
+        return (
+            (await DOCKER_CONN.getImage(name).inspect()).RepoTags[0] ===
+            (name.includes(":") ? name : name + ":latest")
+        );
     } catch (e) {
         if (e instanceof Error) {
-            if (e.message.includes('HTTP code 404')) {
+            if (e.message.includes("HTTP code 404")) {
                 return false;
-            } 
+            }
         }
         throw e;
     }
 }
 
 export async function pullImage(name: string) {
-    return resolveDockerStream<{ status: string }>(await DOCKER_CONN.pull(name) as NodeJS.ReadableStream);
+    return resolveDockerStream<{ status: string }>(
+        (await DOCKER_CONN.pull(name)) as NodeJS.ReadableStream
+    );
 }
 
 enum STREAM_TYPE {
@@ -165,9 +214,13 @@ const parseStreamChunk = (buffer: Buffer) => {
     return [dataArr, errArray];
 };
 
-type StreamResponse = AsyncIterableIterator<[stdout: Buffer, stderr: null] | [stdout: null, stderr: Buffer]>;
+type StreamResponse = AsyncIterableIterator<
+    [stdout: Buffer, stderr: null] | [stdout: null, stderr: Buffer]
+>;
 
-export async function* demuxDockerStream(stream: stream.Duplex): StreamResponse {
+export async function* demuxDockerStream(
+    stream: stream.Duplex
+): StreamResponse {
     let buffer = Buffer.alloc(0);
     for await (const chunk of stream) {
         buffer = Buffer.concat([buffer, chunk]);
@@ -181,17 +234,16 @@ export async function* demuxDockerStream(stream: stream.Duplex): StreamResponse 
     }
 }
 
-
 export async function runExec(container: Container, cmd: string[]) {
-    let execProcess = await container.exec({
+    const execProcess = await container.exec({
         Cmd: cmd,
         AttachStdout: true,
         AttachStderr: true,
     });
     const execProcessStream = await execProcess.start({});
 
-    let stdOut: Buffer[] = [];
-    let stdErr: Buffer[] = [];
+    const stdOut: Buffer[] = [];
+    const stdErr: Buffer[] = [];
     for await (const [data, err] of demuxDockerStream(execProcessStream)) {
         data && stdOut.push(data);
         err && stdErr.push(err);
@@ -200,14 +252,11 @@ export async function runExec(container: Container, cmd: string[]) {
     return [
         Buffer.concat(stdOut).toString(),
         Buffer.concat(stdErr).toString(),
-    ] as [
-        stdOut: string,
-        stdErr: string
-    ];
+    ] as [stdOut: string, stdErr: string];
 }
 
 export async function* runExecStream(container: Container, cmd: string[]) {
-    let execProcess = await container.exec({
+    const execProcess = await container.exec({
         Cmd: cmd,
         AttachStdout: true,
         AttachStderr: true,
@@ -218,10 +267,15 @@ export async function* runExecStream(container: Container, cmd: string[]) {
     }
 }
 
-export async function runExecFile(container: Container, cmd: string, file: string, directory = '/') {
+export async function runExecFile(
+    container: Container,
+    cmd: string,
+    file: string,
+    directory = "/"
+) {
     const filePath = path.join(directory, file);
-    const cmdWithFile = ['sh', '-c', `${cmd} 2>&1 > ${filePath}`];
-    let execProcess = await container.exec({
+    const cmdWithFile = ["sh", "-c", `${cmd} 2>&1 > ${filePath}`];
+    const execProcess = await container.exec({
         Cmd: cmdWithFile,
         AttachStdout: false,
         AttachStderr: false,
@@ -229,4 +283,3 @@ export async function runExecFile(container: Container, cmd: string, file: strin
     await execProcess.start({});
     return filePath;
 }
-

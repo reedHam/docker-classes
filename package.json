@@ -10,11 +10,15 @@
     ],
     "main": "./dist/index.js",
     "type": "module",
-    "repository": "",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/reedHam/node-docker-classes.git"
+    },
     "license": "MIT",
     "scripts": {
         "test": "jest",
         "build": "tsc --declaration",
+        "format": "eslint --fix 'lib/**/*' && prettier --write './lib/**/*.{ts,js}'",
         "prepublish": "yarn test && yarn build"
     },
     "dependencies": {

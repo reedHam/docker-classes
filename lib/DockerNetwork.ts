@@ -1,6 +1,6 @@
-import Docker from 'dockerode';
-import { DOCKER_CONN } from './utils';
-import { waitUntil } from './utils';
+import Docker from "dockerode";
+import { DOCKER_CONN } from "./utils";
+import { waitUntil } from "./utils";
 
 export class DockerNetwork {
     name: string;
@@ -18,13 +18,17 @@ export class DockerNetwork {
                 ...this.options,
                 Labels: {
                     ...this.options.Labels,
-                    'com.docker.network.name': 'default'    
-                }
+                    "com.docker.network.name": "default",
+                },
             });
         } catch (err) {
-            if ((err as {   
-                statusCode: number;
-            }).statusCode === 409) {
+            if (
+                (
+                    err as {
+                        statusCode: number;
+                    }
+                ).statusCode === 409
+            ) {
                 this.network = DOCKER_CONN.getNetwork(this.name);
             } else {
                 throw err;
@@ -34,9 +38,12 @@ export class DockerNetwork {
 
     async connect(container: Docker.Container) {
         const network = await this.getNetwork();
-        if (!network) throw new Error(`Could not connect to network, not found: ${this.options.Name}`);
+        if (!network)
+            throw new Error(
+                `Could not connect to network, not found: ${this.options.Name}`
+            );
         await network.connect({
-            Container: container.id
+            Container: container.id,
         });
     }
 
@@ -52,12 +59,12 @@ export class DockerNetwork {
         }
         throw new Error(`Could not get network: ${this.options.Name}`);
     }
-    
+
     static async getNetwork(name: string): Promise<Docker.Network | null> {
-        const [ networkInfo ] = await DOCKER_CONN.listNetworks({
+        const [networkInfo] = await DOCKER_CONN.listNetworks({
             filters: {
-                name: [name]
-            }
+                name: [name],
+            },
         });
         console.log(networkInfo);
         return networkInfo?.Id ? DOCKER_CONN.getNetwork(networkInfo.Id) : null;
@@ -68,8 +75,8 @@ export class DockerNetwork {
             await waitUntil(async () => {
                 const results = await DOCKER_CONN.pruneNetworks({
                     filters: {
-                        label: [`com.docker.network.name=${this.name}`]
-                    }
+                        label: [`com.docker.network.name=${this.name}`],
+                    },
                 });
                 return !results?.NetworksDeleted?.length;
             });

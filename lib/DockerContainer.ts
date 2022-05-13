@@ -1,7 +1,6 @@
-import { DockerNetwork } from './DockerNetwork';
-import Docker, { Network } from 'dockerode';
-import { runExec, runExecStream } from './utils';
-
+import { DockerNetwork } from "./DockerNetwork";
+import Docker, { Network } from "dockerode";
+import { runExec, runExecStream } from "./utils";
 
 import {
     DOCKER_CONN,
@@ -10,45 +9,58 @@ import {
     isContainerReady,
     isContainerRunning,
     pullImage,
-    waitUntil
-} from './utils';
+    waitUntil,
+} from "./utils";
 
-export type DockerContainerOptions = {
-    containerName?: string;
-    dockerfile?: string;
-    mounts?: Docker.HostConfig['Binds'];
-    volumes?: Docker.ContainerCreateOptions['Volumes'];
-    portBindings?: Docker.HostConfig['PortBindings'];
-    readyFunction?: (...args: any[]) => Promise<any>;
-    cmd?: Docker.ContainerCreateOptions['Cmd'];
-    env?: Docker.ContainerCreateOptions['Env'];
-};
+interface containerCreateOptions extends Docker.ContainerCreateOptions {
+    Image: string;
+    name: string;
+}
 
 export class DockerContainer {
-    imageName;
-    dockerfile;
-    env;
-    cmd;
-    container: Docker.Container | null = null;
-    image: Docker.Image;
+    options;
     name;
-    mounts;
-    volumes;
-    portBindings: Docker.PortBinding[] | undefined;
+    container: Docker.Container | null = null;
     readyFunction;
 
-    constructor(imageName: string, options?: DockerContainerOptions) {
-        if (!imageName) throw new Error('imageName is required');
-        this.imageName = imageName;
-        this.image = DOCKER_CONN.getImage(this.imageName);
-        this.dockerfile = options?.dockerfile;
-        this.name = options?.containerName || imageName.split(':')[0];
-        this.mounts = options?.mounts;
-        this.volumes = options?.volumes;
-        this.readyFunction = options?.readyFunction;
-        this.portBindings = options?.portBindings;
-        this.cmd = options?.cmd;
-        this.env = options?.env;
+    constructor(
+        options: containerCreateOptions,
+        readyFunction?: (service: Docker.Container) => Promise<boolean>
+    ) {
+        this.options = options;
+        this.name = options.name;
+        this.readyFunction = readyFunction;
+    }
+
+    async createContainer() {
+        this.container = await this.getContainer();
+        if (!this.container) {
+            this.container = await DOCKER_CONN.createContainer(this.options);
+        }
+        return this.container;
+    }
+
+    async start() {
+        if (!(await imageExists(this.options.Image))) {
+            await pullImage(this.options.Image);
+        }
+
+        if (!(await this.getContainer())) {
+            await this.createContainer();
+        }
+
+        if (this.container) {
+            try {
+                await this.container.start();
+            } catch (e) {
+                if (e instanceof Error && e.message.includes("304")) {
+                    return;
+                }
+                throw e;
+            }
+        } else {
+            throw new Error("Container not found while trying to start");
+        }
     }
 
     async waitReady(timeout?: number) {
@@ -59,7 +71,9 @@ export class DockerContainer {
                 return isContainerReady(this.container, timeout);
             }
         }
-        throw new Error('Container not found while trying to check if its ready');
+        throw new Error(
+            "Container not found while trying to check if its ready"
+        );
     }
 
     async waitRemoved(timeout = 5000) {
@@ -69,7 +83,7 @@ export class DockerContainer {
                     await this.getInfo();
                     return false;
                 } catch (e) {
-                    if (e instanceof Error && e.message.includes('404')) {
+                    if (e instanceof Error && e.message.includes("404")) {
                         return true;
                     }
                     throw e;
@@ -84,7 +98,7 @@ export class DockerContainer {
 
     async getContainer() {
         const container = await getContainerByName(this.name);
-  
+
         if (container) {
             this.container = container;
             return this.container;
@@ -98,47 +112,35 @@ export class DockerContainer {
         return this.container ? await this.container.inspect() : null;
     }
 
-    async createContainer() {
-        this.container = await this.getContainer();
-        if (!this.container) {
-            this.container = await DOCKER_CONN.createContainer({
-                Image: this.imageName,
-                name: this.name,
-                Volumes: this.volumes,
-                HostConfig: {
-                    Binds: this.mounts,
-                    PortBindings: this.portBindings,
-                },
-                Cmd: this.cmd,
-                Env: this.env
-            });
-        }
-        return this.container;
-    }
-
     async connectToNetwork(network: string | Network) {
-        if (typeof network === 'string') {
+        if (typeof network === "string") {
             const networkReturn = await DockerNetwork.getNetwork(network);
             if (!networkReturn) throw new Error(`Network ${network} not found`);
             network = networkReturn;
         }
-        
+
         if (network && this.container) {
             try {
                 await network.connect({
-                    Container: this.container.id
+                    Container: this.container.id,
                 });
             } catch (e) {
-                if (e instanceof Error && (e.message.includes('304') || e.message.includes('409'))) {
+                if (
+                    e instanceof Error &&
+                    (e.message.includes("304") || e.message.includes("409"))
+                ) {
                     return;
                 }
-                throw e; 
+                throw e;
             }
-
         } else if (!network) {
-            throw new Error(`Network not found while trying to connect to it: ${this.name}`);
+            throw new Error(
+                `Network not found while trying to connect to it: ${this.name}`
+            );
         } else if (!this.container) {
-            throw new Error(`Container not found while trying to connect to network: ${network} ${this.name}`);
+            throw new Error(
+                `Container not found while trying to connect to network: ${network.id} ${this.name}`
+            );
         }
     }
 
@@ -146,30 +148,7 @@ export class DockerContainer {
         if (this.container) {
             return this.container.remove({ force: true });
         } else {
-            throw new Error('Container not found while trying to remove');
-        }
-    }
-
-    async start() {
-        if (!await imageExists(this.imageName)) {
-            await pullImage(this.imageName);
-        }
-        
-        if (!await this.getContainer()) {
-            await this.createContainer();
-        }
-
-        if (this.container) {
-            try {
-                await this.container.start();
-            } catch (e) {
-                if (e instanceof Error && e.message.includes('304')) {
-                    return;
-                }
-                throw e; 
-            }
-        } else {
-            throw new Error('Container not found while trying to start');
+            throw new Error("Container not found while trying to remove");
         }
     }
 
@@ -177,17 +156,15 @@ export class DockerContainer {
         if (this.container) {
             return runExec(this.container, cmd);
         } else {
-            throw new Error('Container not found while trying to run exec');
+            throw new Error("Container not found while trying to run exec");
         }
     }
 
-    async execStream(cmd: string[]) {
+    execStream(cmd: string[]) {
         if (this.container) {
             return runExecStream(this.container, cmd);
         } else {
-            throw new Error('Container not found while trying to run exec');
+            throw new Error("Container not found while trying to run exec");
         }
     }
 }
-
-

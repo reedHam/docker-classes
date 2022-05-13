@@ -1,7 +1,6 @@
 {
     "env": {
         "node": true,
-        "esnext": true,
         "jest": true
     },
     "extends": [
@@ -12,6 +11,9 @@
         "import/resolver": {
 			"typescript": {}
         }
+    },
+    "rules": {
+        "no-constant-condition": ["error", { "checkLoops": false }]
     },
     "overrides": [
         {
@@ -28,8 +30,10 @@
             },
 
 			"parserOptions": {
-				"project": ["./tsconfig.json"]
+				"project": ["./tsconfig.json"],
+                "souceType": "module"
             }
         }
-    ]
+    ], 
+    
 }

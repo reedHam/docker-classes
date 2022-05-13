@@ -1,29 +1,65 @@
-import Docker from 'dockerode';
-import { DOCKER_CONN, isServiceReady, waitUntil, getServiceContainers, getServiceByName } from './utils';
+import Docker from "dockerode";
+import {
+    DOCKER_CONN,
+    isServiceReady,
+    getServiceContainers,
+    getServiceByName,
+    tryUntil,
+    imageExists,
+    pullImage,
+} from "./utils";
 
+interface containerSpec extends Docker.ContainerSpec {
+    Image: string;
+}
+
+interface taskTemplate {
+    ContainerSpec: containerSpec;
+}
+
+interface serviceCreateOptions extends Docker.CreateServiceOptions {
+    TaskTemplate: taskTemplate;
+    Name: string;
+}
 
 export class DockerService {
     name;
+    image;
     options;
     service: Docker.Service | null = null;
     readyFunction;
 
-    constructor(options: Docker.CreateServiceOptions, readyFunction?: (...args: any[]) => Promise<any>) {
+    constructor(
+        options: serviceCreateOptions,
+        readyFunction?: (service: Docker.Service) => Promise<boolean>
+    ) {
         this.name = options.Name;
+        this.image = options.TaskTemplate.ContainerSpec.Image;
         this.options = options;
         this.readyFunction = readyFunction;
     }
 
-    async start() { 
+    async start() {
+        if (!(await imageExists(this.image))) {
+            await pullImage(this.image);
+        }
+
         try {
-            const serviceResponse = await DOCKER_CONN.createService(this.options);
+            const serviceResponse = await DOCKER_CONN.createService(
+                this.options
+            );
             if (serviceResponse.ID) {
                 await this.getService();
             }
         } catch (err) {
-            if ((err as {
-                statusCode: number;
-            }).statusCode === 409 && this.name) {
+            if (
+                (
+                    err as {
+                        statusCode: number;
+                    }
+                ).statusCode === 409 &&
+                this.name
+            ) {
                 await this.getService();
             } else {
                 throw err;
@@ -31,7 +67,7 @@ export class DockerService {
         }
     }
 
-    async waitReady(timeout = 5000) {   
+    async waitReady(timeout = 5000) {
         if (!this.service) await this.getService();
         if (this.service) {
             if (this.readyFunction) {
@@ -40,7 +76,9 @@ export class DockerService {
                 return isServiceReady(this.service, timeout);
             }
         }
-        throw new Error(`Service not found while trying to check ready: ${this.options.Name}.`);
+        throw new Error(
+            `Service not found while trying to check ready: ${this.name}.`
+        );
     }
 
     async remove() {
@@ -48,21 +86,21 @@ export class DockerService {
         if (this.service) {
             const serviceInfo = await this.service.inspect();
             if (serviceInfo) {
-                return this.service.remove();
+                await this.service.remove();
+                this.service = null;
+                return;
             }
         }
-        throw new Error(`No service found while removing: ${this.options.Name}.`);
+        throw new Error(`No service found while removing: ${this.name}.`);
     }
 
     async waitRemoved(timeout = 5000) {
-        if (!this.service) await this.getService();
         if (this.service) {
-            await waitUntil(async () => {
-                const serviceInfo = await this.service?.inspect();
+            await tryUntil(async () => {
+                const serviceInfo = await this.service!.inspect();
                 return !serviceInfo;
             }, timeout);
         }
-        throw new Error(`No service found while waiting to remove: ${this.options.Name}.`);
     }
 
     async scale(replicas: number) {
@@ -71,12 +109,14 @@ export class DockerService {
             await this.service.update({
                 mode: {
                     replicated: {
-                        replicas: replicas
-                    }
-                }
+                        replicas: replicas,
+                    },
+                },
             });
         }
-        throw new Error(`No service found while scaling: ${this.options.Name}.`);
+        throw new Error(
+            `No service found while scaling: ${this.options.Name}.`
+        );
     }
 
     async getService() {
@@ -88,7 +128,9 @@ export class DockerService {
                 return this.service;
             }
         }
-        throw new Error(`No service found while trying to get service: ${this.options.Name}.`);
+        throw new Error(
+            `No service found while trying to get service: ${this.name}.`
+        );
     }
 
     async getContainers() {
@@ -97,6 +139,47 @@ export class DockerService {
             const containers = await getServiceContainers(this.service);
             return containers;
         }
-        throw new Error(`No service found while trying to get containers: ${this.options.Name}.`);
+        throw new Error(
+            `No service found while trying to get containers: ${this.options.Name}.`
+        );
+    }
+
+    async getExecLoad(
+        filterFn: (
+            execInspect: Docker.ExecInspectInfo
+        ) => boolean | Promise<boolean> = (execInspect) => execInspect.Running
+    ) {
+        if (!this.service) await this.getService();
+        if (this.service) {
+            const loadMap = new Map<string, number>();
+            const containers = await this.getContainers();
+            await Promise.all(
+                containers.map((container) => async () => {
+                    const { ExecIDs } = await container.inspect();
+                    return ExecIDs
+                        ? await Promise.all(
+                              ExecIDs.map((id) => async () => {
+                                  const exec = DOCKER_CONN.getExec(id);
+                                  const execInspect = await exec.inspect();
+                                  let filterResult = filterFn(execInspect);
+                                  if (filterResult instanceof Promise) {
+                                      filterResult = await filterResult;
+                                  }
+                                  if (filterResult) {
+                                      loadMap.set(
+                                          id,
+                                          (loadMap.get(id) || 1) + 1
+                                      );
+                                  }
+                              })
+                          )
+                        : [];
+                })
+            );
+            return loadMap;
+        }
+        throw new Error(
+            `No service found while trying to get exec load: ${this.options.Name}.`
+        );
     }
 }
