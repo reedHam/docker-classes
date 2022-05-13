@@ -2,13 +2,15 @@
 name: Build
 on:
   push:
+    branches:    
+      - main
     tags:
       - "v*"
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
+    
     steps:
     - uses: actions/checkout@v3
     - name: Install Node.js dependencies
