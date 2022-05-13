@@ -17,7 +17,7 @@ jobs:
         
       # ESLint must be in `package.json`
       - name: Install Node.js dependencies
-        run: npm ci
+        run: yarn
 
       - name: Run linters
         uses: wearerequired/lint-action@2945049766d69a25dca495b7d7d940ef8e463beb
