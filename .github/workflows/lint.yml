@@ -20,9 +20,6 @@ jobs:
 
       - name: Install Node.js dependencies
         run: yarn install
-      
-      - name: Test
-        run: yarn test
 
       - name: Lint and format
         run: yarn format
