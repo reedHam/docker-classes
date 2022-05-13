@@ -1,0 +1,35 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: Build
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  run-linter:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Install Node.js dependencies
+      run: yarn
+
+    - name: Build
+      run: yarn build
+    
+    - name: Set env
+      run: echo "VERSION=$(echo ${{ github.ref_name }} | sed 's/\//_/')" >> $GITHUB_ENV
+
+    - name: Zip build
+      run: cd dist && zip -r ../${{ github.event.repository.name }}_${{ env.VERSION }}.zip * && cd -
+
+    - uses: actions/upload-artifact@v3
+      with:
+        name: dist
+        path: ${{ github.event.repository.name }}_${{ env.VERSION }}.zip
+
+    - uses: "marvinpinto/action-automatic-releases@v1.2.1"
+      with:
+        repo_token: "${{ secrets.GITHUB_TOKEN }}"
+        title: "Release ${{ env.VERSION }}"
+        files: ${{ github.event.repository.name }}_${{ env.VERSION }}.zip
