@@ -15,7 +15,7 @@ jobs:
         with:
           node-version: 17
       
-      - name: init docker swarm
+      - name: Init docker swarm
         run: docker swarm init
 
       - name: Install Node.js dependencies
@@ -24,7 +24,7 @@ jobs:
       - name: Lint and format
         run: yarn format
 
-      - name: setup git config
+      - name: Setup git config
         run: |
           # setup the username and email. I tend to use 'GitHub Actions Bot' with no email by default
           git config user.name "GitHub Actions Bot"
