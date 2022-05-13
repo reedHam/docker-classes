@@ -4,20 +4,20 @@ import path from "path";
 
 jest.setTimeout(30000);
 
+test("Pulls a docker image", async () => {
+    const pullResponse = await pullImage("alpine:latest");
+    expect(pullResponse).toBeInstanceOf(Array);
+    expect(pullResponse[0].status).toBe("Pulling from library/alpine");
+    expect(pullResponse.pop()?.status).toMatch(/Image is up to date|Downloaded newer image/)
+    await expect(pullImage("invalid-image-name")).rejects.toThrowError(/HTTP code 404/);
+    await expect(pullImage("ALPINE")).rejects.toThrowError(/HTTP code 400/);
+});
+
 test("Checks if an image exists", async () => {
     expect(await imageExists("alpine")).toBeTruthy();
     expect(await imageExists("alpine:latest")).toBeTruthy();
     expect(await imageExists("alpine:invalid")).toBeFalsy();
     expect(await imageExists("invalid-image-name")).toBeFalsy();
-});
-
-test("Pulls a docker image", async () => {
-    const pullResponse = await pullImage("alpine:latest");
-    expect(pullResponse).toBeInstanceOf(Array);
-    expect(pullResponse[0].status).toBe("Pulling from library/alpine");
-    expect(pullResponse[pullResponse.length - 1].status).toBe("Status: Image is up to date for alpine:latest");
-    await expect(pullImage("invalid-image-name")).rejects.toThrowError(/HTTP code 404/);
-    await expect(pullImage("ALPINE")).rejects.toThrowError(/HTTP code 400/);
 });
 
 test("Creates a container", async () => {
