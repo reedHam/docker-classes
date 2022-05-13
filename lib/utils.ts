@@ -271,10 +271,13 @@ export async function runExecFile(
     container: Container,
     cmd: string,
     file: string,
-    directory = "/"
+    directory = "/",
+    options?: {
+        append: boolean;
+    }
 ) {
     const filePath = path.join(directory, file);
-    const cmdWithFile = ["sh", "-c", `${cmd} 2>&1 > ${filePath}`];
+    const cmdWithFile = ["sh", "-c", `${cmd} ${options?.append ? '>>' : '>'} ${filePath} 2>&1`];
     const execProcess = await container.exec({
         Cmd: cmdWithFile,
         AttachStdout: false,
