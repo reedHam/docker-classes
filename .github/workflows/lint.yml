@@ -22,8 +22,19 @@ jobs:
       - name: Install Node.js dependencies
         run: yarn
 
-      - name: Run linters
-        uses: wearerequired/lint-action@2945049766d69a25dca495b7d7d940ef8e463beb
-        with:
-          eslint: true
-          auto_fix_eslint: true
+      - name: Lint and format
+        run: yarn format
+
+      - name: setup git config
+        run: |
+          # setup the username and email. I tend to use 'GitHub Actions Bot' with no email by default
+          git config user.name "GitHub Actions Bot"
+          git config user.email "<>"
+      
+      - name: Commit Linting Fixes
+        run: |
+          git add ./lib ./test
+          git commit -m "Formatting & linting"
+          git push origin main
+      
+     
