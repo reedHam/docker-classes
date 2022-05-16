@@ -12,7 +12,7 @@ import {
     waitUntil,
 } from "./utils";
 
-interface containerCreateOptions extends Docker.ContainerCreateOptions {
+export interface ContainerCreateOptions extends Docker.ContainerCreateOptions {
     Image: string;
     name: string;
 }
@@ -24,7 +24,7 @@ export class DockerContainer {
     readyFunction;
 
     constructor(
-        options: containerCreateOptions,
+        options: ContainerCreateOptions,
         readyFunction?: (service: Docker.Container) => Promise<boolean>
     ) {
         this.options = options;
