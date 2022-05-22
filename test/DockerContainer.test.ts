@@ -76,8 +76,8 @@ test("Runs a command on a container", async () => {
         const realContainer = await container.getContainer();
         expect(realContainer).not.toBeNull();
 
-        const [stdout, stdErr] = await runExec(realContainer!, ["echo", "Hello World!"]);
-        expect(stdout.toString()).toBe("Hello World!\n");
+        const { stdOut, stdErr } = await runExec(realContainer!, ["echo", "Hello World!"]);
+        expect(stdOut.toString()).toBe("Hello World!\n");
         expect(stdErr.toString()).toBe("");
 
     } finally {
@@ -91,9 +91,9 @@ test("Runs a command stream on a container", async () => {
         const realContainer = await container.getContainer();
         expect(realContainer).not.toBeNull();
 
-        for await (const [stdout, stdErr] of runExecStream(realContainer!, ["echo", "Hello World!"])) {
-            if (stdout) {
-                expect(stdout.toString()).toBe("Hello World!\n");
+        for await (const { stdOut, stdErr } of runExecStream(realContainer!, ["echo", "Hello World!"])) {
+            if (stdOut) {
+                expect(stdOut.toString()).toBe("Hello World!\n");
             }
             if (stdErr) {
                 expect(stdErr.toString()).toBe("");

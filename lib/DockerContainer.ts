@@ -1,6 +1,6 @@
 import { DockerNetwork } from "./DockerNetwork";
 import Docker, { Network } from "dockerode";
-import { getExecLoad, runExec, runExecStream } from "./utils";
+import { getExecLoad, getMinimumLoadContainer, runExec, runExecStream } from "./utils";
 import crypto from "crypto";
 import { setTimeout } from "timers/promises";
 
@@ -292,6 +292,10 @@ export class DockerContainerSwarm {
         return getExecLoad(containers, filterFn);
     } 
 
+    async getMinimumLoadContainer() {
+        const containers = await this.getContainers();
+        return getMinimumLoadContainer(containers);
+    }
 
     async runOnSwarm(cmd: string[]) {
         const containers = await this.getContainers();
