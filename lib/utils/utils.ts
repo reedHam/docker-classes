@@ -20,24 +20,30 @@ export async function promiseSyncFn<T>(functionToTry: () => Promise<T> | T) {
 
 export async function waitUntil<T>(
     conditionFn: () => Promise<T> | T,
-    timeout = 5000,
-    interval = 200
+    option?: {
+        timeout: 5000,
+        interval: 200
+    }
 ) {
+    const { timeout = 5000, interval = 200 } = option || {};
     const start = Date.now();
     let result = await conditionFn();
     do {
         if (result) return result;
         await setTimeout(interval);
-        result = await conditionFn();
+    result = await conditionFn();
     } while (Date.now() - start < timeout);
     return result;
 }
 
 export async function tryUntil<T>(
     functionToTry: () => Promise<T> | T,
-    timeout = 5000,
-    interval = 200
+    option?: {
+        timeout: 5000,
+        interval: 200
+    }
 ): Promise<T> {
+    const { timeout = 5000, interval = 200 } = option || {};
     const start = Date.now();
     while (true) {
         try {
