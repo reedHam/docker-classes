@@ -89,7 +89,9 @@ export class DockerContainer {
                     }
                     throw e;
                 }
-            }, timeout);
+            }, {
+                timeout
+            });
         }
     }
 

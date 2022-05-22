@@ -101,7 +101,9 @@ export class DockerService {
             await tryUntil(async () => {
                 const serviceInfo = await this.service!.inspect();
                 return !serviceInfo;
-            }, timeout);
+            }, {
+                timeout
+            });
         }
     }
 
