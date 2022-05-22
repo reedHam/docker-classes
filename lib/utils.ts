@@ -179,6 +179,8 @@ export async function imageExists(name: string) {
     }
 }
 
+export const execIsRunning = (execInspect: Docker.ExecInspectInfo) => execInspect.Running;
+
 export async function getExecLoad(
     containers: Container[],
     filterFn: (

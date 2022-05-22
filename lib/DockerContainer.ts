@@ -1,6 +1,6 @@
 import { DockerNetwork } from "./DockerNetwork";
 import Docker, { Network } from "dockerode";
-import { getExecLoad, getMinimumLoadContainer, runExec, runExecStream } from "./utils";
+import { execIsRunning, getExecLoad, getMinimumLoadContainer, runExec, runExecStream } from "./utils";
 import crypto from "crypto";
 import { setTimeout } from "timers/promises";
 
@@ -183,6 +183,7 @@ export class DockerContainerSwarm {
     replicas;
     running: boolean;
     pollingInterval: number;
+    execPerContainer: number;
 
     constructor(
         swarmName: string,
@@ -190,6 +191,7 @@ export class DockerContainerSwarm {
         services: { [name: string]: Docker.ContainerCreateOptions },
         options?: {
             pollingInterval?: number;
+            execPerContainer?: number;
         }
     ) {
         this.name = swarmName;
@@ -197,6 +199,7 @@ export class DockerContainerSwarm {
         this.services = services;
         this.running = false;
         this.pollingInterval = options?.pollingInterval || 1000;
+        this.execPerContainer = options?.execPerContainer || 0;
     }
 
     async start() {
@@ -214,20 +217,37 @@ export class DockerContainerSwarm {
                         const info = await c.inspect();
                         return info.State.Running;
                     });
+
                     const countMismatch = replicasPerService - runningContainers.length;
-                    for (let i = 0; i < countMismatch; i++) {
-                        const container = this.createServiceContainer(
-                            serviceName,
-                            this.services[serviceName]
-                        );
-                        await container.start();
-                        await container.waitReady();
+                    let additionCount = countMismatch;
+                    if (this.execPerContainer > 0 && countMismatch > 0) {
+                        additionCount = 1;
+                        for (const container of runningContainers) {
+                            const execPerContainerMap = await this.getExecLoad(
+                                (execInspect) => {
+                                    return execIsRunning(execInspect) && execInspect.ContainerID === container.id;
+                                }
+                            );
+                            const totalExec = Array.from(execPerContainerMap.entries()).reduce((total, [, execCount]) => total + execCount, 0);
+                            if (totalExec <= this.execPerContainer) {
+                                additionCount = 0;
+                            }
+                        }
                     }
 
+
+                    const promiseAdditionArray = [];
+                    for (let i = 0; i < additionCount; i++) {
+                        promiseAdditionArray.push(this.startServiceContainer(serviceName, this.services[serviceName]));
+                    }
+                    await Promise.all(promiseAdditionArray);
+
+                    const promiseRemovalArray = [];
                     for (let i = 0; i > countMismatch; i--) {
                         const [container] = containers.splice(0, 1);
-                        await container.remove({ force: true });
+                        promiseRemovalArray.push(container.remove({ force: true }));
                     }
+                    await Promise.all(promiseRemovalArray);
                 })
             );
             await setTimeout(this.pollingInterval);
@@ -286,7 +306,7 @@ export class DockerContainerSwarm {
     async getExecLoad(
         filterFn: (
             execInspect: Docker.ExecInspectInfo
-        ) => boolean | Promise<boolean> = (execInspect) => execInspect.Running
+        ) => boolean | Promise<boolean> = execIsRunning
     ) {
         const containers = await this.getContainers();
         return getExecLoad(containers, filterFn);
@@ -319,5 +339,18 @@ export class DockerContainerSwarm {
         };
         const dockerContainer = new DockerContainer(containerOptions);
         return dockerContainer;
+    }
+
+    async startServiceContainer(
+        serviceName: string,
+        options: Docker.ContainerCreateOptions,
+    ) {
+        const container = this.createServiceContainer(
+            serviceName,
+            options
+        );
+        await container.start();
+        await container.waitReady();
+        return container;
     }
 }
