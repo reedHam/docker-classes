@@ -1,6 +1,6 @@
 import { DockerNetwork } from "./DockerNetwork";
 import Docker, { Network } from "dockerode";
-import { runExec, runExecStream } from "./utils";
+import { getExecLoad, runExec, runExecStream } from "./utils";
 import crypto from "crypto";
 import { setTimeout } from "timers/promises";
 
@@ -171,28 +171,39 @@ export class DockerContainer {
     }
 }
 
+
+/**
+ * DockerContainerSwarm manages a collection of containers for running commands on.
+ * This class should be used when the normal docker service does not provide enough
+ * customization when scaling the service.
+ */
 export class DockerContainerSwarm {
     name: string;
     services;
     replicas;
-    polling: boolean;
+    running: boolean;
+    pollingInterval: number;
 
     constructor(
         swarmName: string,
         replicas: number,
-        services: { [name: string]: Docker.ContainerCreateOptions }
+        services: { [name: string]: Docker.ContainerCreateOptions },
+        options?: {
+            pollingInterval?: number;
+        }
     ) {
         this.name = swarmName;
         this.replicas = replicas;
         this.services = services;
-        this.polling = false;
+        this.running = false;
+        this.pollingInterval = options?.pollingInterval || 1000;
     }
 
     async start() {
         const serviceNames = Object.keys(this.services);
 
-        this.polling = true;
-        while (this.polling) {
+        this.running = true;
+        while (this.running) {
             const replicasPerService = Math.ceil(
                 this.replicas / serviceNames.length
             );
@@ -203,8 +214,7 @@ export class DockerContainerSwarm {
                         const info = await c.inspect();
                         return info.State.Running;
                     });
-                    const countMismatch =
-                        replicasPerService - runningContainers.length;
+                    const countMismatch = replicasPerService - runningContainers.length;
                     for (let i = 0; i < countMismatch; i++) {
                         const container = this.createServiceContainer(
                             serviceName,
@@ -220,13 +230,13 @@ export class DockerContainerSwarm {
                     }
                 })
             );
-
-            await setTimeout(1000);
+            await setTimeout(this.pollingInterval);
         }
+        this.running = false;
     }
 
     async stop() {
-        this.polling = false;
+        this.running = false;
         const containers = await this.getContainers();
         await Promise.all(containers.map((c) => c.remove({ force: true })));
     }
@@ -272,6 +282,23 @@ export class DockerContainerSwarm {
         });
     }
 
+
+    async getExecLoad(
+        filterFn: (
+            execInspect: Docker.ExecInspectInfo
+        ) => boolean | Promise<boolean> = (execInspect) => execInspect.Running
+    ) {
+        const containers = await this.getContainers();
+        return getExecLoad(containers, filterFn);
+    } 
+
+
+    async runOnSwarm(cmd: string[]) {
+        const containers = await this.getContainers();
+        const randomContainer = containers[Math.floor(Math.random() * containers.length)];
+        return runExec(randomContainer, cmd);
+    }
+
     createServiceContainer(
         serviceName: string,
         options: Docker.ContainerCreateOptions
@@ -280,8 +307,7 @@ export class DockerContainerSwarm {
         const containerOptions = JSON.parse(
             JSON.stringify(options)
         ) as ContainerCreateOptions;
-        containerOptions.name =
-            containerOptions.name || `${serviceName}_${crypto.randomUUID()}`;
+        containerOptions.name = containerOptions.name || `${serviceName}_${crypto.randomUUID()}`;
         containerOptions.Labels = {
             ...(containerOptions.Labels || {}),
             "com.docker.swarm.service.name": serviceName,

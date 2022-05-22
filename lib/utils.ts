@@ -176,6 +176,38 @@ export async function imageExists(name: string) {
     }
 }
 
+export async function getExecLoad(
+    containers: Container[],
+    filterFn: (
+        execInspect: Docker.ExecInspectInfo
+    ) => boolean | Promise<boolean> = (execInspect) => execInspect.Running ) {
+    const loadMap = new Map<string, number>();
+    await Promise.all(
+        containers.map((container) => async () => {
+            const { ExecIDs } = await container.inspect();
+            return ExecIDs
+                ? await Promise.all(
+                        ExecIDs.map((id) => async () => {
+                            const exec = DOCKER_CONN.getExec(id);
+                            const execInspect = await exec.inspect();
+                            let filterResult = filterFn(execInspect);
+                            if (filterResult instanceof Promise) {
+                                filterResult = await filterResult;
+                            }
+                            if (filterResult) {
+                                loadMap.set(
+                                    id,
+                                    (loadMap.get(id) || 1) + 1
+                                );
+                            }
+                        })
+                    )
+                : [];
+        })
+    );
+    return loadMap;
+}
+
 export async function pullImage(name: string) {
     return resolveDockerStream<{ status: string }>(
         (await DOCKER_CONN.pull(name)) as NodeJS.ReadableStream
@@ -254,6 +286,7 @@ export async function runExec(container: Container, cmd: string[]) {
         Buffer.concat(stdErr).toString(),
     ] as [stdOut: string, stdErr: string];
 }
+
 
 export async function* runExecStream(container: Container, cmd: string[]) {
     const execProcess = await container.exec({

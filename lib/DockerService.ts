@@ -7,6 +7,7 @@ import {
     tryUntil,
     imageExists,
     pullImage,
+    getExecLoad,
 } from "./utils";
 
 interface containerSpec extends Docker.ContainerSpec {
@@ -151,32 +152,8 @@ export class DockerService {
     ) {
         if (!this.service) await this.getService();
         if (this.service) {
-            const loadMap = new Map<string, number>();
             const containers = await this.getContainers();
-            await Promise.all(
-                containers.map((container) => async () => {
-                    const { ExecIDs } = await container.inspect();
-                    return ExecIDs
-                        ? await Promise.all(
-                              ExecIDs.map((id) => async () => {
-                                  const exec = DOCKER_CONN.getExec(id);
-                                  const execInspect = await exec.inspect();
-                                  let filterResult = filterFn(execInspect);
-                                  if (filterResult instanceof Promise) {
-                                      filterResult = await filterResult;
-                                  }
-                                  if (filterResult) {
-                                      loadMap.set(
-                                          id,
-                                          (loadMap.get(id) || 1) + 1
-                                      );
-                                  }
-                              })
-                          )
-                        : [];
-                })
-            );
-            return loadMap;
+            return getExecLoad(containers, filterFn);
         }
         throw new Error(
             `No service found while trying to get exec load: ${this.options.Name}.`

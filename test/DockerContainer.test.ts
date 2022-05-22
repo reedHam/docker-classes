@@ -120,7 +120,8 @@ test("Docker Container Swarm", async () => {
     await dockerContainerSwarm.waitReady();
     const containers = await dockerContainerSwarm.getContainers();
     expect(containers.length).toBe(2);
-    await containers[0].remove({ force : true });
+    // Remove a container and see if service recreates the dead container 
+    await containers[0].remove({ force: true });
     await setTimeout(1000);
     const containers2 = await dockerContainerSwarm.getContainers();
     expect(containers2.length).toBe(2);
