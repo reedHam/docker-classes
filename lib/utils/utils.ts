@@ -21,8 +21,8 @@ export async function promiseSyncFn<T>(functionToTry: () => Promise<T> | T) {
 export async function waitUntil<T>(
     conditionFn: () => Promise<T> | T,
     option?: {
-        timeout: number | 5000,
-        interval: number | 200,
+        timeout?: number | 5000,
+        interval?: number | 200,
     }
 ) {
     const { timeout = 5000, interval = 200 } = option || {};
@@ -39,8 +39,8 @@ export async function waitUntil<T>(
 export async function tryUntil<T>(
     functionToTry: () => Promise<T> | T,
     option?: {
-        timeout: number | 5000,
-        interval: number | 200,
+        timeout?: number | 5000,
+        interval?: number | 200,
     }
 ): Promise<T> {
     const { timeout = 5000, interval = 200 } = option || {};
