@@ -1,14 +1,8 @@
 import Docker from "dockerode";
-import {
-    DOCKER_CONN,
-    isServiceReady,
-    getServiceContainers,
-    getServiceByName,
-    tryUntil,
-    imageExists,
-    pullImage,
-    getExecLoad,
-} from "./utils";
+import { getExecLoad } from "./utils/container.utils";
+import { getServiceByName, getServiceContainers, isServiceReady } from "./utils/service.utils";
+import { DOCKER_CONN, tryUntil, imageExists, pullImage} from "./utils/utils";
+
 
 interface containerSpec extends Docker.ContainerSpec {
     Image: string;
