@@ -1,7 +1,9 @@
-import "dotenv/config";
-import Docker from "dockerode";
+import { DockerContainerSwarm } from './../DockerContainerSwarm';
+import { DockerService } from './../DockerService';
+import Docker, { Container } from "dockerode";
 import { setTimeout } from "timers/promises";
 import stream from "stream";
+import { getExecLoad } from './container.utils';
 
 export const DOCKER_CONN = new Docker({
     socketPath: process.env.DOCKER_SOCKET_PATH || "/var/run/docker.sock",
@@ -136,3 +138,18 @@ export async function* demuxDockerStream(
     }
 }
 
+export async function waitForTotalExecLoad(target: DockerService | DockerContainerSwarm | Container[], load: number) {
+    let totalLoad = 0;
+    const getTotalExecLoad = async (): Promise<number> => {
+        let execs: Awaited<ReturnType<typeof getExecLoad>>;
+        if (target instanceof DockerService || target instanceof DockerContainerSwarm) {
+            execs = await target.getExecLoad();
+        } else {
+            execs = await getExecLoad(target);
+        }
+        totalLoad = Array.from(execs.entries()).reduce((acc, [, exec]) => acc + exec, 0);
+        return totalLoad;
+    };
+    await waitUntil(async () => await getTotalExecLoad() === load);
+    return totalLoad;
+}

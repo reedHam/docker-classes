@@ -1,6 +1,6 @@
 import Docker from "dockerode";
-import { DOCKER_CONN } from "./utils";
-import { waitUntil } from "./utils";
+import { DOCKER_CONN } from "./utils/utils";
+import { waitUntil } from "./utils/utils";
 
 export class DockerNetwork {
     name: string;

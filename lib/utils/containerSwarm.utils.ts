@@ -1,5 +1,4 @@
-import Docker from "dockerode";
-import { DockerContainerSwarm } from "../DockerContainerSwarm";
+import type { DockerContainerSwarm } from "../DockerContainerSwarm";
 import { getMinimumLoadContainer } from "./container.utils";
 import { waitUntil } from "./utils";
 
@@ -49,7 +48,8 @@ export async function maximumReplicasSwarmScaling(swarm: DockerContainerSwarm): 
         } else if (countMismatch < 0) {
             const removePromises = [];
             for (let i = 0; i > countMismatch && runningContainers.length > 0; i--) {
-                const container = getMinimumLoadContainer(runningContainers);
+                const container = await getMinimumLoadContainer(runningContainers);
+                if (!container) break;
                 removePromises.push(container.remove({ force: true }));
             }
             await Promise.all(removePromises);

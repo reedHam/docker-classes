@@ -1,10 +1,19 @@
 import { ContainerCreateOptions, DockerContainer } from "./DockerContainer";
 import Docker from "dockerode";
-import { execIsRunning, promiseSyncFn, DOCKER_CONN} from "./utils/utils";
 import crypto from "crypto";
 import { setTimeout } from "timers/promises";
-import { DockerContainerSwarmReadyFunction, DockerContainerSwarmScalingFunction, maximumReplicasSwarmReady, maximumReplicasSwarmScaling } from "./utils/containerSwarm.utils";
-import { getExecLoad, getMinimumLoadContainer, runExec } from "./utils/container.utils";
+import {
+    execIsRunning,
+    promiseSyncFn,
+    DOCKER_CONN,
+    getExecLoad,
+    getMinimumLoadContainer,
+    runExec,
+    DockerContainerSwarmReadyFunction,
+    DockerContainerSwarmScalingFunction,
+    maximumReplicasSwarmReady,
+    maximumReplicasSwarmScaling
+} from "./utils";
 
 export interface SwarmContainerCreateOptions extends Docker.ContainerCreateOptions {
     Image: string;
@@ -67,6 +76,10 @@ export class DockerContainerSwarm {
             await setTimeout(this.pollingInterval);
         }
         this.running = false;
+    }
+
+    waitReady() {
+        return this.readyFunction(this);
     }
 
     async stop() {

@@ -1,7 +1,17 @@
 import { DockerNetwork } from "./DockerNetwork";
 import Docker, { Network } from "dockerode";
-import { DOCKER_CONN, imageExists, pullImage, waitUntil } from "./utils/utils";
-import { getContainerByName, isContainerReady, isContainerRunning, runExec, runExecStream } from "./utils/container.utils";
+import {
+    DOCKER_CONN,
+    imageExists,
+    pullImage,
+    waitUntil,
+    getContainerByName,
+    isContainerReady,
+    isContainerRunning,
+    runExec,
+    runExecStream
+} from "./utils";
+
 
 export interface ContainerCreateOptions extends Docker.ContainerCreateOptions {
     Image: string;

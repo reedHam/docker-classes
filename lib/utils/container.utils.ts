@@ -1,5 +1,5 @@
 import Docker from "dockerode";
-import { Container } from "dockerode";
+import type { Container } from "dockerode";
 import { demuxDockerStream, DOCKER_CONN, waitUntil } from "./utils";
 import path from "path";
 
