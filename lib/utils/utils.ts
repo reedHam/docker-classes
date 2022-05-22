@@ -31,7 +31,7 @@ export async function waitUntil<T>(
     do {
         if (result) return result;
         await setTimeout(interval);
-    result = await conditionFn();
+        result = await conditionFn();
     } while (Date.now() - start < timeout);
     return result;
 }
@@ -47,7 +47,7 @@ export async function tryUntil<T>(
     const start = Date.now();
     while (true) {
         try {
-            await promiseSyncFn(functionToTry);
+            return await promiseSyncFn(functionToTry);
         } catch (e) {
             if (Date.now() - start > timeout) {
                 throw e;
