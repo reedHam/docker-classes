@@ -136,14 +136,13 @@ export async function waitUntil<T>(
     interval = 200
 ) {
     const start = Date.now();
-    while (Date.now() - start < timeout) {
-        const isReady = await promiseSyncFn(conditionFn);
-        if (isReady) {
-            return true;
-        }
+    let result = await conditionFn();
+    do {
+        if (result) return result;
         await setTimeout(interval);
-    }
-    return false;
+        result = await conditionFn();
+    } while (Date.now() - start < timeout);
+    return result;
 }
 
 export async function tryUntil<T>(
