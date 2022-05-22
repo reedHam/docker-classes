@@ -30,6 +30,15 @@ export async function getContainerByName(name: string) {
     return DOCKER_CONN.getContainer(containerInfo.Id);
 }
 
+export async function promiseSyncFn<T>(functionToTry: () => Promise<T> | T) {
+    const res = functionToTry();
+    if (res instanceof Promise) {
+        return await res;
+    } else {
+        return Promise.resolve(res);
+    }
+}
+
 export async function getServiceByName(name: string) {
     const serviceInfos = await DOCKER_CONN.listServices();
     const serviceInfo = serviceInfos.find(
@@ -121,14 +130,14 @@ export async function isServiceReady(service: Docker.Service, timeout = 4000) {
     return waitUntil(checkReady, timeout);
 }
 
-export async function waitUntil(
-    callback: () => Promise<boolean>,
+export async function waitUntil<T>(
+    conditionFn: () => Promise<T> | T,
     timeout = 5000,
     interval = 200
 ) {
     const start = Date.now();
     while (Date.now() - start < timeout) {
-        const isReady = await callback();
+        const isReady = await promiseSyncFn(conditionFn);
         if (isReady) {
             return true;
         }
@@ -145,12 +154,7 @@ export async function tryUntil<T>(
     const start = Date.now();
     while (true) {
         try {
-            const res = functionToTry();
-            if (res instanceof Promise) {
-                return await res;
-            } else {
-                return Promise.resolve(res);
-            }
+            await promiseSyncFn(functionToTry);
         } catch (e) {
             if (Date.now() - start > timeout) {
                 throw e;
@@ -182,12 +186,15 @@ export async function getExecLoad(
         execInspect: Docker.ExecInspectInfo
     ) => boolean | Promise<boolean> = (execInspect) => execInspect.Running ) {
     const loadMap = new Map<string, number>();
+    for (const container of containers) {
+        loadMap.set(container.id, 0);
+    }
     await Promise.all(
-        containers.map((container) => async () => {
+        containers.map(async (container) => {
             const { ExecIDs } = await container.inspect();
             return ExecIDs
                 ? await Promise.all(
-                        ExecIDs.map((id) => async () => {
+                        ExecIDs.map(async (id) => {
                             const exec = DOCKER_CONN.getExec(id);
                             const execInspect = await exec.inspect();
                             let filterResult = filterFn(execInspect);
@@ -196,8 +203,8 @@ export async function getExecLoad(
                             }
                             if (filterResult) {
                                 loadMap.set(
-                                    id,
-                                    (loadMap.get(id) || 1) + 1
+                                    container.id,
+                                    (loadMap.get(container.id) || 0) + 1
                                 );
                             }
                         })

@@ -141,4 +141,57 @@ test("Docker Container Swarm", async () => {
 });
 
 
-        
+test("Scale a DockerContainerSwarm with a service", async () => {
+    const dockerContainerSwarm = new DockerContainerSwarm("alpine-swarm", 2, {
+        alpineService: {
+            Image: "alpine:latest",
+            Cmd: [
+                "sh",
+                "-c",
+                'while sleep 3600; do :; done'
+            ]
+        }
+    });
+    dockerContainerSwarm.start();
+    await dockerContainerSwarm.waitReady();
+    const containers = await dockerContainerSwarm.getContainers();
+    expect(containers.length).toBe(2);
+    await setTimeout(200);
+
+    const sleepCmd = [
+        "sh",
+        "-c",
+        'while sleep 3600; do :; done'
+    ];
+    dockerContainerSwarm.runOnSwarm(sleepCmd);
+    await setTimeout(200);
+
+    const totalExecLoad = async (): Promise<number> => {
+        const execs = await dockerContainerSwarm.getExecLoad();
+        return Array.from(execs.entries()).reduce((acc, [, exec]) => acc + exec, 0);
+    }
+    
+    expect(await totalExecLoad()).toBe(1);
+
+    dockerContainerSwarm.runOnSwarm(sleepCmd);
+    await setTimeout(200);
+    
+    expect(await totalExecLoad()).toBe(2);
+
+    for (let i = 0; i < 100; i++) {
+        dockerContainerSwarm.runOnSwarm(sleepCmd);
+    }
+    await setTimeout(2000);
+    expect(await totalExecLoad()).toBe(102);
+
+    const execLoad = await dockerContainerSwarm.getExecLoad();
+    const loadArr = Array.from(execLoad.entries());
+    expect(loadArr[0][1]).toBeGreaterThan(30);
+    expect(loadArr[0][1]).toBeLessThan(70);
+    expect(loadArr[1][1]).toBeGreaterThan(30);
+    expect(loadArr[1][1]).toBeLessThan(70);
+
+    await dockerContainerSwarm.stop();
+    const containersEnd = await dockerContainerSwarm.getContainers();
+    expect(containersEnd.length).toBe(0);
+});

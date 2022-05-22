@@ -17,6 +17,7 @@
     "license": "MIT",
     "scripts": {
         "test": "jest",
+        "cleanup-dangling-tests": "ps aux | grep node | grep jest ",
         "build": "tsc --declaration",
         "format": "eslint --fix 'lib/**/*' && prettier --write './lib/**/*.{ts,js}'",
         "prepublish": "yarn test && yarn build"
