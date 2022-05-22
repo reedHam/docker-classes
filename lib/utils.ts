@@ -214,6 +214,21 @@ export async function getExecLoad(
     return loadMap;
 }
 
+export async function getMinimumLoadContainer(containers: Container[]) {
+    const loadMap = await getExecLoad(containers);
+    let minLoad = Infinity;
+    let minLoadContainer: Container | undefined;
+    for (const [containerId, load] of loadMap) {
+        if (load === minLoad) {
+            minLoadContainer = Math.random() < 0.5 ? minLoadContainer : containers.find((container) => container.id === containerId);
+        } else if (load < minLoad) {
+            minLoad = load;
+            minLoadContainer = containers.find((container) => container.id === containerId);
+        }
+    }
+    return minLoadContainer;
+}
+
 export async function pullImage(name: string) {
     return resolveDockerStream<{ status: string }>(
         (await DOCKER_CONN.pull(name)) as NodeJS.ReadableStream
@@ -287,10 +302,11 @@ export async function runExec(container: Container, cmd: string[]) {
         err && stdErr.push(err);
     }
 
-    return [
-        Buffer.concat(stdOut).toString(),
-        Buffer.concat(stdErr).toString(),
-    ] as [stdOut: string, stdErr: string];
+    return {
+        stdOut: Buffer.concat(stdOut).toString(),
+        stdErr: Buffer.concat(stdErr).toString(),
+        exec: execProcess,
+    }
 }
 
 
@@ -301,8 +317,11 @@ export async function* runExecStream(container: Container, cmd: string[]) {
         AttachStderr: true,
     });
     const execProcessStream = await execProcess.start({});
-    for await (const [data, err] of demuxDockerStream(execProcessStream)) {
-        yield [data, err];
+    for await (const [stdOut, stdErr] of demuxDockerStream(execProcessStream)) {
+        yield {
+            stdOut,
+            stdErr,
+        };
     }
 }
 
