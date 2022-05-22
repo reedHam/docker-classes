@@ -139,35 +139,35 @@ export class DockerContainerSwarm {
         return runExec(randomContainer, cmd);
     }
 
-    async createContainerName(serviceName: string) {
-        const containers = await this.getContainers(serviceName);
-        const containerInspections = await Promise.all(containers.map((c) => c.inspect()));
-        const newName = `${serviceName}_${crypto.randomUUID()}`;
-        const nameAlreadyExists = containerInspections.some((inspect) => inspect.Name === newName);
-        if (nameAlreadyExists) {
-            throw new Error(`Container name ${newName} already exists`);
-        }
-        return newName; 
-    }
-
-    async createServiceContainer(serviceName: string) {
+    createServiceContainer(serviceName: string) {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-call
-        const containerOptions = this.services[serviceName];
-        containerOptions.name = containerOptions.name || await tryUntil(this.createContainerName.bind(this, serviceName));
+        const containerOptions = Object.assign({}, this.services[serviceName]) as ContainerCreateOptions;
+        containerOptions.name = containerOptions.name || `${serviceName}_${crypto.randomUUID()}`;
         containerOptions.Labels = {
             ...(containerOptions.Labels || {}),
             "com.docker.swarm.service.name": serviceName,
             "com.docker.swarm.name": this.name,
         };
-        const dockerContainer = new DockerContainer(containerOptions as ContainerCreateOptions);
+        const dockerContainer = new DockerContainer(containerOptions);
         return dockerContainer;
     }
 
-    async startServiceContainer(serviceName: string) {
-        const container = await this.createServiceContainer(serviceName);
-        await container.start();
-        await container.waitReady();
-        return container;
+    async startServiceContainer(serviceName: string, retries = 0): Promise<DockerContainer> {
+        try {
+            const container = this.createServiceContainer(serviceName);
+            await container.start();
+            await container.waitReady();
+            return container;
+        } catch (e) {
+            if (
+                e instanceof Error
+                && e.message.toUpperCase().includes("HTTP CODE 409")
+                && e.message.toLowerCase().includes("already in use")
+                && retries < 3) {
+                return this.startServiceContainer(serviceName, retries + 1);
+            }
+            throw e;
+        }
     }
 }
 
