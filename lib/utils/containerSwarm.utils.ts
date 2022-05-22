@@ -1,6 +1,6 @@
 import type { DockerContainerSwarm } from "../DockerContainerSwarm";
 import { getMinimumLoadContainer } from "./container.utils";
-import { waitUntil } from "./utils";
+import { tryUntil, waitUntil } from "./utils";
 
 export type DockerContainerSwarmScalingFunction = (swarm: DockerContainerSwarm) => Promise<void> | void;
 export type DockerContainerSwarmReadyFunction = (swarm: DockerContainerSwarm) => Promise<boolean> | boolean;
@@ -11,15 +11,19 @@ export type DockerContainerSwarmReadyFunction = (swarm: DockerContainerSwarm) =>
  * @param options.timeout Timeout in milliseconds
  * @returns true if the service is ready, false if the timeout is reached
  */
-export function maximumReplicasSwarmReady(swarm: DockerContainerSwarm, options?: { timeout: 10000 }): Promise<boolean> {
-    return waitUntil(async () => {
+export function maximumReplicasSwarmReady(swarm: DockerContainerSwarm, options?: { timeout?: number | 10000 }): Promise<boolean> {
+    const { timeout = 10000 } = options || {};
+    return tryUntil(async () => {
             const containers = await swarm.getContainers();
             const runningContainers = containers.filter(async (c) => {
                 const info = await c.inspect();
                 return info.State.Running;
             });
-            return runningContainers.length >= swarm.maxReplicas;
-    }, options?.timeout || 10000);
+            if (runningContainers.length < swarm.maxReplicas) {
+                throw new Error("Not ready");
+            }
+            return true;
+    }, {timeout});
 }
 
 /** 

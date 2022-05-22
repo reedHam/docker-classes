@@ -29,7 +29,7 @@ export function isContainerReady(
         );
     };
 
-    return waitUntil(checkReady, timeout);
+    return waitUntil(checkReady, { timeout });
 }
 
 export async function isContainerRunning(container: Docker.Container) {

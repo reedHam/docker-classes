@@ -28,7 +28,7 @@ export async function isServiceReady(service: Docker.Service, timeout = 4000) {
             .every((task) => task?.Status?.State === "running");
     };
 
-    return waitUntil(checkReady, timeout);
+    return waitUntil(checkReady, { timeout });
 }
 
 export type ListTaskReturn = {
