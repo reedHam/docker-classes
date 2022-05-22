@@ -1,5 +1,5 @@
 import { setTimeout } from 'timers/promises';
-import { DockerContainer, DockerContainerSwarm, imageExists, pullImage, runExec, runExecStream } from "../lib";
+import { DockerContainer, DockerContainerSwarm, imageExists, pullImage, runExec, runExecStream, waitUntil } from "../lib";
 import { randomUUID } from 'crypto';
 import path from "path";
 
@@ -166,23 +166,25 @@ test("Scale a DockerContainerSwarm with a service", async () => {
     dockerContainerSwarm.runOnSwarm(sleepCmd);
     await setTimeout(200);
 
-    const totalExecLoad = async (): Promise<number> => {
+    const totalExecLoad = async (count: number): Promise<number> => {
         const execs = await dockerContainerSwarm.getExecLoad();
-        return Array.from(execs.entries()).reduce((acc, [, exec]) => acc + exec, 0);
+        const totalLoad = Array.from(execs.entries()).reduce((acc, [, exec]) => acc + exec, 0);
+        await waitUntil(() => totalLoad === count);
+        return totalLoad;
     }
     
-    expect(await totalExecLoad()).toBe(1);
+    expect(await totalExecLoad(1)).toBe(1);
 
     dockerContainerSwarm.runOnSwarm(sleepCmd);
     await setTimeout(200);
     
-    expect(await totalExecLoad()).toBe(2);
+    expect(await totalExecLoad(2)).toBe(2);
 
     for (let i = 0; i < 100; i++) {
         dockerContainerSwarm.runOnSwarm(sleepCmd);
     }
-    await setTimeout(2000);
-    expect(await totalExecLoad()).toBe(102);
+
+    expect(await totalExecLoad(102)).toBe(102);
 
     const execLoad = await dockerContainerSwarm.getExecLoad();
     const loadArr = Array.from(execLoad.entries());
