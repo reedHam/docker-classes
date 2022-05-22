@@ -167,9 +167,13 @@ test("Scale a DockerContainerSwarm with a service", async () => {
     await setTimeout(200);
 
     const totalExecLoad = async (count: number): Promise<number> => {
-        const execs = await dockerContainerSwarm.getExecLoad();
-        const totalLoad = Array.from(execs.entries()).reduce((acc, [, exec]) => acc + exec, 0);
-        await waitUntil(() => totalLoad === count);
+        let totalLoad = 0;
+        const getTotalExecLoad = async (): Promise<number> => {
+            const execs = await dockerContainerSwarm.getExecLoad();
+            totalLoad = Array.from(execs.entries()).reduce((acc, [, exec]) => acc + exec, 0);
+            return totalLoad;
+        };
+        await waitUntil(async () => await getTotalExecLoad() === count);
         return totalLoad;
     }
     
