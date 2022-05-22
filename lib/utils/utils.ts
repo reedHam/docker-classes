@@ -144,6 +144,10 @@ export async function* demuxDockerStream(
     }
 }
 
+export function totalExecLoad(execLoad: Awaited<ReturnType<typeof getExecLoad>>) {
+    return Array.from(execLoad.entries()).reduce((acc, [, exec]) => acc + exec, 0);
+}
+
 export async function waitForTotalExecLoad(target: DockerService | DockerContainerSwarm | Container[], load: number) {
     let totalLoad = 0;
     const getTotalExecLoad = async (): Promise<number> => {
@@ -153,7 +157,7 @@ export async function waitForTotalExecLoad(target: DockerService | DockerContain
         } else {
             execs = await getExecLoad(target);
         }
-        totalLoad = Array.from(execs.entries()).reduce((acc, [, exec]) => acc + exec, 0);
+        totalLoad = totalExecLoad(execs);
         return totalLoad;
     };
     await waitUntil(async () => await getTotalExecLoad() === load);

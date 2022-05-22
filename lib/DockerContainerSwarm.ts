@@ -71,7 +71,7 @@ export class DockerContainerSwarm {
     async start() {
         this.running = true;
         while (this.running) {
-            await promiseSyncFn(this.scalingFunction.bind(null, this))
+            await promiseSyncFn(this.scalingFunction.bind(null, this));
             await setTimeout(this.pollingInterval);
         }
         this.running = false;
@@ -134,9 +134,10 @@ export class DockerContainerSwarm {
     }
 
     async runOnSwarm(cmd: string[]) {
-        const containers = await this.getContainers();
-        const randomContainer = containers[Math.floor(Math.random() * containers.length)];
-        return runExec(randomContainer, cmd);
+        await this.scalingFunction(this);
+        const minLoadContainer = await this.getMinimumLoadContainer()
+        if (!minLoadContainer) throw new Error("No containers available");
+        return runExec(minLoadContainer, cmd);
     }
 
     createServiceContainer(serviceName: string) {

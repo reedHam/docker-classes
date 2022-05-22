@@ -1,6 +1,6 @@
 import Docker from "dockerode";
 import type { Container } from "dockerode";
-import { demuxDockerStream, DOCKER_CONN, waitUntil } from "./utils";
+import { demuxDockerStream, DOCKER_CONN, promiseSyncFn, waitUntil } from "./utils";
 import path from "path";
 
 export async function getContainerByName(name: string) {
@@ -115,11 +115,7 @@ export async function getExecLoad(
                         ExecIDs.map(async (id) => {
                             const exec = DOCKER_CONN.getExec(id);
                             const execInspect = await exec.inspect();
-                            let filterResult = filterFn(execInspect);
-                            if (filterResult instanceof Promise) {
-                                filterResult = await filterResult;
-                            }
-                            if (filterResult) {
+                            if (await promiseSyncFn(filterFn.bind(null, execInspect))) {
                                 loadMap.set(
                                     container.id,
                                     (loadMap.get(container.id) || 0) + 1

@@ -1,6 +1,6 @@
 import type { DockerContainerSwarm } from "../DockerContainerSwarm";
-import { getMinimumLoadContainer } from "./container.utils";
-import { tryUntil, waitUntil } from "./utils";
+import { getContainerByName, getExecLoad, getMinimumLoadContainer, isContainerRunning } from "./container.utils";
+import { DOCKER_CONN, totalExecLoad, tryUntil, waitUntil } from "./utils";
 
 export type DockerContainerSwarmScalingFunction = (swarm: DockerContainerSwarm) => Promise<void> | void;
 export type DockerContainerSwarmReadyFunction = (swarm: DockerContainerSwarm) => Promise<boolean> | boolean;
@@ -19,7 +19,8 @@ export async function maximumReplicasSwarmReady(swarm: DockerContainerSwarm, opt
             const info = await c.inspect();
             return info.State.Running;
         });
-        if (runningContainers.length !== Math.ceil(swarm.maxReplicas / Object.keys(swarm.services).length) * Object.keys(swarm.services).length) {
+        const serviceNames = Object.keys(swarm.services);
+        if (runningContainers.length !== Math.ceil(swarm.maxReplicas / serviceNames.length) * serviceNames.length) {
             throw new Error("Not ready");
         }
         return true;
@@ -36,10 +37,7 @@ export async function maximumReplicasSwarmScaling(swarm: DockerContainerSwarm): 
 
     for (const serviceName of serviceNames) {
         const containers = await swarm.getContainers(serviceName);
-        const runningContainers = containers.filter(async (c) => {
-            const info = await c.inspect();
-            return info.State.Running;
-        });
+        const runningContainers = containers.filter(isContainerRunning);
         const numContainers = runningContainers.length;
         const countMismatch = maxServiceReplicas - numContainers;
 
@@ -61,4 +59,55 @@ export async function maximumReplicasSwarmScaling(swarm: DockerContainerSwarm): 
             await Promise.all(removePromises);
         }
     }
+}
+
+
+/**
+ * Waits until there is a single container running on the swarm for each service.
+ * @param swarm DockerContainerSwarm
+ */
+export async function singleContainerSwarmReady(swarm: DockerContainerSwarm): Promise<boolean> {
+    const serviceNames = Object.keys(swarm.services);
+    return tryUntil(async () => {
+        for (const serviceName of serviceNames) {
+            const containers = await swarm.getContainers(serviceName);
+            const runningContainers = containers.filter(isContainerRunning);
+            if (runningContainers.length < 1) {
+                throw new Error("Not ready");
+            }
+        }
+        return true;
+    });
+}
+
+
+/**
+ * Scales the swarm services based on a threshold of exec load.
+ * @param threshold The threshold of exec load to start a new container
+ */
+export function createExecContainerSwarmScaling(threshold: number): DockerContainerSwarmScalingFunction {
+    return async (swarm: DockerContainerSwarm) => {
+        const serviceNames = Object.keys(swarm.services);
+        const maxServiceReplicas = Math.ceil(swarm.maxReplicas / serviceNames.length);
+
+        const containerPromises = [];
+        for (const serviceName of serviceNames) {
+            const runningContainers = (await swarm.getContainers(serviceName)).filter(isContainerRunning);
+            if (runningContainers.length === 0) {
+                containerPromises.push(swarm.startServiceContainer(serviceName));
+            } else {
+                const execLoad = await getExecLoad(runningContainers)
+                for (const [id, load] of execLoad) {
+                    if (load >= threshold && runningContainers.length < maxServiceReplicas) {
+                        containerPromises.push(swarm.startServiceContainer(serviceName));
+                    } else if (load === 0 && runningContainers.length > 1) {
+                        const index = runningContainers.findIndex((c) => c.id === id);
+                        if (index > -1) runningContainers.splice(index, 1);
+                        containerPromises.push(DOCKER_CONN.getContainer(id).remove({ force: true }));
+                    }
+                }
+            }
+        }
+        await Promise.all(containerPromises);
+    };
 }
