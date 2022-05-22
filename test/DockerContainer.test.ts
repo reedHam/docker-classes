@@ -1,4 +1,5 @@
-import { DockerContainer, imageExists, pullImage, runExec, runExecStream } from "../lib";
+import { setTimeout } from 'timers/promises';
+import { DockerContainer, DockerContainerSwarm, imageExists, pullImage, runExec, runExecStream } from "../lib";
 import { randomUUID } from 'crypto';
 import path from "path";
 
@@ -102,3 +103,41 @@ test("Runs a command stream on a container", async () => {
         await cleanUpContainer(container);
     }
 });
+
+
+test("Docker Container Swarm", async () => {
+    const dockerContainerSwarm = new DockerContainerSwarm("alpine-swarm", 2, {
+        alpineService: {
+            Image: "alpine:latest",
+            Cmd: [
+                "sh",
+                "-c",
+                'while sleep 3600; do :; done'
+            ]
+        }
+    });
+    dockerContainerSwarm.start();
+    await dockerContainerSwarm.waitReady();
+    const containers = await dockerContainerSwarm.getContainers();
+    expect(containers.length).toBe(2);
+    await containers[0].remove({ force : true });
+    await setTimeout(1000);
+    const containers2 = await dockerContainerSwarm.getContainers();
+    expect(containers2.length).toBe(2);
+    dockerContainerSwarm.scale(3);
+    await dockerContainerSwarm.waitReady();
+    const containers3 = await dockerContainerSwarm.getContainers();
+    expect(containers3.length).toBe(3);
+
+    dockerContainerSwarm.scale(1);
+    await dockerContainerSwarm.waitReady();
+    const containers4 = await dockerContainerSwarm.getContainers();
+    expect(containers4.length).toBe(1);
+    
+    await dockerContainerSwarm.stop();
+    const containersEnd = await dockerContainerSwarm.getContainers();
+    expect(containersEnd.length).toBe(0);
+});
+
+
+        

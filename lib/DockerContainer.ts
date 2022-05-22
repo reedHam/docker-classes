@@ -1,6 +1,9 @@
 import { DockerNetwork } from "./DockerNetwork";
 import Docker, { Network } from "dockerode";
 import { runExec, runExecStream } from "./utils";
+import crypto from "crypto";
+import { setTimeout } from "timers/promises";
+
 
 import {
     DOCKER_CONN,
@@ -166,5 +169,109 @@ export class DockerContainer {
         } else {
             throw new Error("Container not found while trying to run exec");
         }
+    }
+}
+
+
+export class DockerContainerSwarm {
+    name: string;
+    services;
+    replicas;
+    polling: boolean;
+
+    constructor(swarmName: string, replicas: number, services: { [name: string]: Docker.ContainerCreateOptions }) {
+        this.name = swarmName;
+        this.replicas = replicas;
+        this.services = services;
+        this.polling = false;
+    }
+
+    async start() {
+        const serviceNames = Object.keys(this.services);
+
+        this.polling = true;
+        while (this.polling) {
+            const replicasPerService = Math.ceil(this.replicas / serviceNames.length);
+            await Promise.all(
+                serviceNames.map(async (serviceName) => {
+                    const containers = await this.getContainers(serviceName);
+                    const runningContainers = containers.filter(async c => {
+                        const info = await c.inspect()
+                        return info.State.Running
+                    });
+                    const countMismatch = replicasPerService - runningContainers.length;
+                    for (let i = 0; i < countMismatch; i++) {
+                        const container = this.createServiceContainer(serviceName, this.services[serviceName]);
+                        await container.start();
+                        await container.waitReady();
+                    }
+
+                    for (let i = 0; i > countMismatch; i--) {
+                        const [container] = containers.splice(0, 1);
+                        await container.remove({ force: true });
+                    }
+                })
+            );
+
+            await setTimeout(1000)
+        }
+    }
+
+    async stop() {
+        this.polling = false;
+        const containers = await this.getContainers();
+        await Promise.all(containers.map(c => c.remove({ force: true })));
+    }
+    
+    scale(replicas: number) {
+        this.replicas = replicas;
+    }
+
+    waitReady = () =>
+        waitUntil(async () => {
+            const containers = await this.getContainers();
+            const runningContainers = containers.filter(async c => {
+                const info = await c.inspect()
+                return info.State.Running
+            });
+            return runningContainers.length === this.replicas;
+        }, 10000);
+    
+
+    async getContainers(serviceName?: string) {
+        let containerInfoArray = [];
+        if (serviceName && Object.prototype.hasOwnProperty.call(this.services, serviceName)) {
+            containerInfoArray = await DOCKER_CONN.listContainers({
+                all: true,
+                filters: {
+                    label: [`com.docker.swarm.service.name=${serviceName}`],
+                },
+            });
+        } else {
+            containerInfoArray = await DOCKER_CONN.listContainers({
+                all: true,
+                filters: {
+                    label: [`com.docker.swarm.name=${this.name}`],
+                },
+            });
+        }
+
+        return containerInfoArray.map((containerInfo) => {
+            const container = DOCKER_CONN.getContainer(containerInfo.Id);
+            return container;
+        });
+    }
+
+    createServiceContainer(serviceName: string, options: Docker.ContainerCreateOptions) {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+        const containerOptions = JSON.parse(JSON.stringify(options)) as ContainerCreateOptions;
+        containerOptions.name = containerOptions.name || `${serviceName}_${crypto.randomUUID()}`;
+        containerOptions.Labels = {
+            ...(containerOptions.Labels || {}),
+            "com.docker.swarm.service.name": serviceName,
+            "com.docker.swarm.name": this.name,
+        };
+        const dockerContainer = new DockerContainer(containerOptions);
+        return dockerContainer;
     }
 }
