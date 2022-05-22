@@ -12,7 +12,8 @@ import {
     DockerContainerSwarmReadyFunction,
     DockerContainerSwarmScalingFunction,
     maximumReplicasSwarmReady,
-    maximumReplicasSwarmScaling
+    maximumReplicasSwarmScaling,
+    tryUntil
 } from "./utils";
 
 export interface SwarmContainerCreateOptions extends Docker.ContainerCreateOptions {
@@ -68,8 +69,6 @@ export class DockerContainerSwarm {
     }
 
     async start() {
-        const serviceNames = Object.keys(this.services);
-
         this.running = true;
         while (this.running) {
             await promiseSyncFn(this.scalingFunction.bind(null, this))
@@ -140,10 +139,21 @@ export class DockerContainerSwarm {
         return runExec(randomContainer, cmd);
     }
 
-    createServiceContainer(serviceName: string) {
+    async createContainerName(serviceName: string) {
+        const containers = await this.getContainers(serviceName);
+        const containerInspections = await Promise.all(containers.map((c) => c.inspect()));
+        const newName = `${serviceName}_${crypto.randomUUID()}`;
+        const nameAlreadyExists = containerInspections.some((inspect) => inspect.Name === newName);
+        if (nameAlreadyExists) {
+            throw new Error(`Container name ${newName} already exists`);
+        }
+        return newName; 
+    }
+
+    async createServiceContainer(serviceName: string) {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-call
         const containerOptions = this.services[serviceName];
-        containerOptions.name = containerOptions.name || `${serviceName}_${crypto.randomUUID()}`;
+        containerOptions.name = containerOptions.name || await tryUntil(this.createContainerName.bind(this, serviceName));
         containerOptions.Labels = {
             ...(containerOptions.Labels || {}),
             "com.docker.swarm.service.name": serviceName,
@@ -154,7 +164,7 @@ export class DockerContainerSwarm {
     }
 
     async startServiceContainer(serviceName: string) {
-        const container = this.createServiceContainer(serviceName);
+        const container = await this.createServiceContainer(serviceName);
         await container.start();
         await container.waitReady();
         return container;
