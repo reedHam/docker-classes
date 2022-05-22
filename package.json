@@ -17,7 +17,7 @@
     "license": "MIT",
     "scripts": {
         "test": "jest",
-        "cleanup-dangling-tests": "(ps aux | grep \"node /\" | grep jest | grep -v grep | awk '{print $2}' | xargs kill -9) && (docker container ls --filter=name=alpineService | awk '(NR>1)' |  awk '{print $1}' | xargs docker container rm --force)",
+        "cleanup-dangling-tests": "((ps aux | grep \"node /\" | grep jest | grep -v grep | awk '{print $2}' | xargs kill -9) || true) && (docker container ls --filter=name=alpineService | awk '(NR>1)' |  awk '{print $1}' | xargs docker container rm --force)",
         "build": "tsc --declaration",
         "format": "eslint --fix 'lib/**/*' && prettier --write './lib/**/*.{ts,js}'",
         "prepublish": "yarn test && yarn build"
