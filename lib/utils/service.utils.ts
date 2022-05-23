@@ -1,4 +1,4 @@
-import type { DockerService } from './../DockerService';
+import type { DockerService } from "./../DockerService";
 import Docker from "dockerode";
 import { DOCKER_CONN, waitUntil } from "./utils";
 
@@ -69,5 +69,3 @@ export async function getServiceContainers(service: Docker.Service) {
         containerIDs.map((containerID) => DOCKER_CONN.getContainer(containerID))
     );
 }
-
-

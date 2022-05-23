@@ -1,9 +1,9 @@
-import { DockerContainerSwarm } from './../DockerContainerSwarm';
-import { DockerService } from './../DockerService';
+import { DockerContainerSwarm } from "./../DockerContainerSwarm";
+import { DockerService } from "./../DockerService";
 import Docker, { Container } from "dockerode";
 import { setTimeout } from "timers/promises";
 import stream from "stream";
-import { getExecLoad } from './container.utils';
+import { getExecLoad } from "./container.utils";
 
 export const DOCKER_CONN = new Docker({
     socketPath: process.env.DOCKER_SOCKET_PATH || "/var/run/docker.sock",
@@ -21,8 +21,8 @@ export async function promiseSyncFn<T>(functionToTry: () => Promise<T> | T) {
 export async function waitUntil<T>(
     conditionFn: () => Promise<T> | T,
     option?: {
-        timeout?: number | 5000,
-        interval?: number | 200,
+        timeout?: number | 5000;
+        interval?: number | 200;
     }
 ) {
     const { timeout = 5000, interval = 200 } = option || {};
@@ -39,8 +39,8 @@ export async function waitUntil<T>(
 export async function tryUntil<T>(
     functionToTry: () => Promise<T> | T,
     option?: {
-        timeout?: number | 5000,
-        interval?: number | 200,
+        timeout?: number | 5000;
+        interval?: number | 200;
     }
 ): Promise<T> {
     const { timeout = 5000, interval = 200 } = option || {};
@@ -73,7 +73,8 @@ export async function imageExists(name: string) {
     }
 }
 
-export const execIsRunning = (execInspect: Docker.ExecInspectInfo) => execInspect.Running;
+export const execIsRunning = (execInspect: Docker.ExecInspectInfo) =>
+    execInspect.Running;
 
 export async function pullImage(name: string) {
     return resolveDockerStream<{ status: string }>(
@@ -144,15 +145,26 @@ export async function* demuxDockerStream(
     }
 }
 
-export function totalExecLoad(execLoad: Awaited<ReturnType<typeof getExecLoad>>) {
-    return Array.from(execLoad.entries()).reduce((acc, [, exec]) => acc + exec, 0);
+export function totalExecLoad(
+    execLoad: Awaited<ReturnType<typeof getExecLoad>>
+) {
+    return Array.from(execLoad.entries()).reduce(
+        (acc, [, exec]) => acc + exec,
+        0
+    );
 }
 
-export async function waitForTotalExecLoad(target: DockerService | DockerContainerSwarm | Container[], load: number) {
+export async function waitForTotalExecLoad(
+    target: DockerService | DockerContainerSwarm | Container[],
+    load: number
+) {
     let totalLoad = 0;
     const getTotalExecLoad = async (): Promise<number> => {
         let execs: Awaited<ReturnType<typeof getExecLoad>>;
-        if (target instanceof DockerService || target instanceof DockerContainerSwarm) {
+        if (
+            target instanceof DockerService ||
+            target instanceof DockerContainerSwarm
+        ) {
             execs = await target.getExecLoad();
         } else {
             execs = await getExecLoad(target);
@@ -160,6 +172,6 @@ export async function waitForTotalExecLoad(target: DockerService | DockerContain
         totalLoad = totalExecLoad(execs);
         return totalLoad;
     };
-    await waitUntil(async () => await getTotalExecLoad() === load);
+    await waitUntil(async () => (await getTotalExecLoad()) === load);
     return totalLoad;
 }

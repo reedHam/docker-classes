@@ -9,9 +9,8 @@ import {
     isContainerReady,
     isContainerRunning,
     runExec,
-    runExecStream
+    runExecStream,
 } from "./utils";
-
 
 export interface ContainerCreateOptions extends Docker.ContainerCreateOptions {
     Image: string;
@@ -79,19 +78,22 @@ export class DockerContainer {
 
     async waitRemoved(timeout = 5000) {
         if (this.container) {
-            await waitUntil(async () => {
-                try {
-                    await this.getInfo();
-                    return false;
-                } catch (e) {
-                    if (e instanceof Error && e.message.includes("404")) {
-                        return true;
+            await waitUntil(
+                async () => {
+                    try {
+                        await this.getInfo();
+                        return false;
+                    } catch (e) {
+                        if (e instanceof Error && e.message.includes("404")) {
+                            return true;
+                        }
+                        throw e;
                     }
-                    throw e;
+                },
+                {
+                    timeout,
                 }
-            }, {
-                timeout
-            });
+            );
         }
     }
 
@@ -171,4 +173,3 @@ export class DockerContainer {
         }
     }
 }
-

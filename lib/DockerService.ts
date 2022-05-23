@@ -7,9 +7,8 @@ import {
     getServiceByName,
     getServiceContainers,
     isServiceReady,
-    getExecLoad
+    getExecLoad,
 } from "./utils";
-
 
 interface containerSpec extends Docker.ContainerSpec {
     Image: string;
@@ -98,12 +97,15 @@ export class DockerService {
 
     async waitRemoved(timeout = 5000) {
         if (this.service) {
-            await tryUntil(async () => {
-                const serviceInfo = await this.service!.inspect();
-                return !serviceInfo;
-            }, {
-                timeout
-            });
+            await tryUntil(
+                async () => {
+                    const serviceInfo = await this.service!.inspect();
+                    return !serviceInfo;
+                },
+                {
+                    timeout,
+                }
+            );
         }
     }
 

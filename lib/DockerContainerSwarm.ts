@@ -13,21 +13,22 @@ import {
     DockerContainerSwarmScalingFunction,
     maximumReplicasSwarmReady,
     maximumReplicasSwarmScaling,
-    tryUntil
+    tryUntil,
 } from "./utils";
 
-export interface SwarmContainerCreateOptions extends Docker.ContainerCreateOptions {
+export interface SwarmContainerCreateOptions
+    extends Docker.ContainerCreateOptions {
     Image: string;
 }
 
 /**
  * DockerContainerSwarm manages a collection of containers for running commands on.
  * This class should be used when the normal docker service does not provide enough
- * customization when scaling the service. 
- * 
- * The best use case for this class is when you want to run a command on a set of 
- * services that are identical aside from some environment. 
- * 
+ * customization when scaling the service.
+ *
+ * The best use case for this class is when you want to run a command on a set of
+ * services that are identical aside from some environment.
+ *
  * The problem it was designed to solve was scaling a pool of vpn clients that are
  * identical aside from location or provider.
  */
@@ -44,7 +45,7 @@ export class DockerContainerSwarm {
      * Creates a new DockerContainerSwarm
      * @param swarmName The name of the swarm
      * @param services The services to run in the swarm
-     * @param options.pollingInterval The interval at witch the scalling function will be called (defaults to 1000). 
+     * @param options.pollingInterval The interval at witch the scalling function will be called (defaults to 1000).
      * Will wait for scaling function to complete before calling again.
      * @param options.scalingFunction Function that handles creating and removing containers should not create more than maxReplicas number of containers.
      * @param options.readyFunction Function that handles checking if the containers are ready (defaults to MaximumReplicasSwarmReadyFunction).
@@ -55,8 +56,8 @@ export class DockerContainerSwarm {
         maxReplicas: number,
         options?: {
             scalingInterval?: number;
-            scalingFunction?: DockerContainerSwarmScalingFunction,
-            readyFunction?: DockerContainerSwarmReadyFunction,
+            scalingFunction?: DockerContainerSwarmScalingFunction;
+            readyFunction?: DockerContainerSwarmReadyFunction;
         }
     ) {
         this.name = swarmName;
@@ -64,8 +65,10 @@ export class DockerContainerSwarm {
         this.running = false;
         this.pollingInterval = options?.scalingInterval || 1000;
         this.maxReplicas = maxReplicas;
-        this.scalingFunction = options?.scalingFunction || maximumReplicasSwarmScaling;
-        this.readyFunction = options?.readyFunction || maximumReplicasSwarmReady;
+        this.scalingFunction =
+            options?.scalingFunction || maximumReplicasSwarmScaling;
+        this.readyFunction =
+            options?.readyFunction || maximumReplicasSwarmReady;
     }
 
     async start() {
@@ -118,7 +121,6 @@ export class DockerContainerSwarm {
         });
     }
 
-
     async getExecLoad(
         filterFn: (
             execInspect: Docker.ExecInspectInfo
@@ -126,7 +128,7 @@ export class DockerContainerSwarm {
     ) {
         const containers = await this.getContainers();
         return getExecLoad(containers, filterFn);
-    } 
+    }
 
     async getMinimumLoadContainer() {
         const containers = await this.getContainers();
@@ -134,15 +136,19 @@ export class DockerContainerSwarm {
     }
 
     async runOnSwarm(cmd: string[]) {
-        const minLoadContainer = await this.getMinimumLoadContainer()
+        const minLoadContainer = await this.getMinimumLoadContainer();
         if (!minLoadContainer) throw new Error("No containers available");
         return runExec(minLoadContainer, cmd);
     }
 
     createServiceContainer(serviceName: string) {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-call
-        const containerOptions = Object.assign({}, this.services[serviceName]) as ContainerCreateOptions;
-        containerOptions.name = containerOptions.name || `${serviceName}_${crypto.randomUUID()}`;
+        const containerOptions = Object.assign(
+            {},
+            this.services[serviceName]
+        ) as ContainerCreateOptions;
+        containerOptions.name =
+            containerOptions.name || `${serviceName}_${crypto.randomUUID()}`;
         containerOptions.Labels = {
             ...(containerOptions.Labels || {}),
             "com.docker.swarm.service.name": serviceName,
@@ -152,22 +158,25 @@ export class DockerContainerSwarm {
         return dockerContainer;
     }
 
-    async startServiceContainer(serviceName: string, retries = 0): Promise<DockerContainer> {
+    async startServiceContainer(
+        serviceName: string,
+        retries = 0
+    ): Promise<DockerContainer> {
         try {
             const container = this.createServiceContainer(serviceName);
             await container.start();
             await container.waitReady();
             return container;
         } catch (e) {
-            if (e instanceof Error
-                && e.message.toUpperCase().includes("HTTP CODE 409")
-                && e.message.toLowerCase().includes("already in use")
-                && retries < 3) {
+            if (
+                e instanceof Error &&
+                e.message.toUpperCase().includes("HTTP CODE 409") &&
+                e.message.toLowerCase().includes("already in use") &&
+                retries < 3
+            ) {
                 return this.startServiceContainer(serviceName, retries + 1);
             }
             throw e;
         }
     }
 }
-
-
