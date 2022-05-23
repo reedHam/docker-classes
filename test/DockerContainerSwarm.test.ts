@@ -101,50 +101,50 @@ test("Runs exec on swarm", async () => {
     expect(await dockerContainerSwarm.getContainers()).toHaveLength(0);
 });
 
-test("Scale a DockerContainerSwarm by exec", async () => {
-    const dockerContainerSwarm = new DockerContainerSwarm("alpine-swarm", {
-            alpineService: {
-                Image: "alpine:latest",
-                Cmd: [
-                    "sh",
-                    "-c",
-                    'while sleep 3600; do :; done'
-                ]
-            }
-        },
-        4,
-        {
-            scalingFunction: createExecContainerSwarmScaling(1),
-            readyFunction: singleContainerSwarmReady,
-            scalingInterval: 250
-        }
-    );
-    dockerContainerSwarm.start();
-    await dockerContainerSwarm.waitReady();
+// test("Scale a DockerContainerSwarm by exec", async () => {
+//     const dockerContainerSwarm = new DockerContainerSwarm("alpine-swarm", {
+//             alpineService: {
+//                 Image: "alpine:latest",
+//                 Cmd: [
+//                     "sh",
+//                     "-c",
+//                     'while sleep 3600; do :; done'
+//                 ]
+//             }
+//         },
+//         4,
+//         {
+//             scalingFunction: createExecContainerSwarmScaling(1),
+//             readyFunction: singleContainerSwarmReady,
+//             scalingInterval: 250
+//         }
+//     );
+//     dockerContainerSwarm.start();
+//     await dockerContainerSwarm.waitReady();
 
-    expect(await dockerContainerSwarm.getContainers()).toHaveLength(1);
+//     expect(await dockerContainerSwarm.getContainers()).toHaveLength(1);
 
-    const sleepCmd = [
-        "sh",
-        "-c",
-        'sleep 25'
-    ];
+//     const sleepCmd = [
+//         "sh",
+//         "-c",
+//         'sleep 25'
+//     ];
  
-    dockerContainerSwarm.runOnSwarm(sleepCmd);
-    expect(await waitForTotalExecLoad(dockerContainerSwarm, 1)).toBe(1);
-    expect(await dockerContainerSwarm.getContainers()).toHaveLength(2);
+//     dockerContainerSwarm.runOnSwarm(sleepCmd);
+//     expect(await waitForTotalExecLoad(dockerContainerSwarm, 1)).toBe(1);
+//     expect(await dockerContainerSwarm.getContainers()).toHaveLength(2);
 
-    dockerContainerSwarm.runOnSwarm(sleepCmd);
-    expect(await waitForTotalExecLoad(dockerContainerSwarm, 2)).toBe(2);
-    expect(await dockerContainerSwarm.getContainers()).toHaveLength(3);
+//     dockerContainerSwarm.runOnSwarm(sleepCmd);
+//     expect(await waitForTotalExecLoad(dockerContainerSwarm, 2)).toBe(2);
+//     expect(await dockerContainerSwarm.getContainers()).toHaveLength(3);
 
-    await setTimeout(25 * 1000);
-    expect(await waitForTotalExecLoad(dockerContainerSwarm, 0)).toBe(0);
-    expect(await dockerContainerSwarm.getContainers()).toHaveLength(1);
+//     await setTimeout(25 * 1000);
+//     expect(await waitForTotalExecLoad(dockerContainerSwarm, 0)).toBe(0);
+//     expect(await dockerContainerSwarm.getContainers()).toHaveLength(1);
 
-    await dockerContainerSwarm.stop();
-    expect(dockerContainerSwarm.running).toBe(false);
-    expect(await dockerContainerSwarm.getContainers()).toHaveLength(0);
-    await setTimeout(2000);
-    expect(await dockerContainerSwarm.getContainers()).toHaveLength(0);
-});
+//     await dockerContainerSwarm.stop();
+//     expect(dockerContainerSwarm.running).toBe(false);
+//     expect(await dockerContainerSwarm.getContainers()).toHaveLength(0);
+//     await setTimeout(2000);
+//     expect(await dockerContainerSwarm.getContainers()).toHaveLength(0);
+// });
