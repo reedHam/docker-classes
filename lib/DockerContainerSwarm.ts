@@ -54,7 +54,7 @@ export class DockerContainerSwarm {
         services: { [name: string]: SwarmContainerCreateOptions },
         maxReplicas: number,
         options?: {
-            scalingInterval?: 1000;
+            scalingInterval?: number;
             scalingFunction?: DockerContainerSwarmScalingFunction,
             readyFunction?: DockerContainerSwarmReadyFunction,
         }
@@ -134,7 +134,6 @@ export class DockerContainerSwarm {
     }
 
     async runOnSwarm(cmd: string[]) {
-        await this.scalingFunction(this);
         const minLoadContainer = await this.getMinimumLoadContainer()
         if (!minLoadContainer) throw new Error("No containers available");
         return runExec(minLoadContainer, cmd);
@@ -160,8 +159,7 @@ export class DockerContainerSwarm {
             await container.waitReady();
             return container;
         } catch (e) {
-            if (
-                e instanceof Error
+            if (e instanceof Error
                 && e.message.toUpperCase().includes("HTTP CODE 409")
                 && e.message.toLowerCase().includes("already in use")
                 && retries < 3) {

@@ -1,6 +1,6 @@
 import type { DockerContainerSwarm } from "../DockerContainerSwarm";
-import { getContainerByName, getExecLoad, getMinimumLoadContainer, isContainerRunning } from "./container.utils";
-import { DOCKER_CONN, totalExecLoad, tryUntil, waitUntil } from "./utils";
+import { getExecLoad, getMinimumLoadContainer, isContainerRunning } from "./container.utils";
+import { DOCKER_CONN, tryUntil } from "./utils";
 
 export type DockerContainerSwarmScalingFunction = (swarm: DockerContainerSwarm) => Promise<void> | void;
 export type DockerContainerSwarmReadyFunction = (swarm: DockerContainerSwarm) => Promise<boolean> | boolean;
@@ -80,7 +80,11 @@ export async function singleContainerSwarmReady(swarm: DockerContainerSwarm): Pr
     });
 }
 
-
+// This function does not work properly because jobs can be ran on the containers before the scaling function is called.
+// When adding a new exec the service needs to be scaled up.
+// When jobs finish the service needs to be scaled down.
+// This probably should be done with events.
+// Jobs being added need to be queued and scaling needs to be done before the tasks are added.
 /**
  * Scales the swarm services based on a threshold of exec load.
  * @param threshold The threshold of exec load to start a new container
@@ -96,14 +100,19 @@ export function createExecContainerSwarmScaling(threshold: number): DockerContai
             if (runningContainers.length === 0) {
                 containerPromises.push(swarm.startServiceContainer(serviceName));
             } else {
-                const execLoad = await getExecLoad(runningContainers)
+                const execLoad = await getExecLoad(runningContainers);
+                const zeroLoadContainers = runningContainers.filter((c) => execLoad.get(c.id) === 0);
+                if (zeroLoadContainers.length > 1) {
+                    while (zeroLoadContainers.length > 1) {
+                        const container = zeroLoadContainers.splice(0, 1).pop();
+                        if (!container) break;
+                        await container.remove({ force: true });
+                    }
+                }
+
                 for (const [id, load] of execLoad) {
                     if (load >= threshold && runningContainers.length < maxServiceReplicas) {
                         containerPromises.push(swarm.startServiceContainer(serviceName));
-                    } else if (load === 0 && runningContainers.length > 1) {
-                        const index = runningContainers.findIndex((c) => c.id === id);
-                        if (index > -1) runningContainers.splice(index, 1);
-                        containerPromises.push(DOCKER_CONN.getContainer(id).remove({ force: true }));
                     }
                 }
             }

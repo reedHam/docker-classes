@@ -103,19 +103,20 @@ test("Runs exec on swarm", async () => {
 
 test("Scale a DockerContainerSwarm by exec", async () => {
     const dockerContainerSwarm = new DockerContainerSwarm("alpine-swarm", {
-        alpineService: {
-            Image: "alpine:latest",
-            Cmd: [
-                "sh",
-                "-c",
-                'while sleep 3600; do :; done'
-            ]
-        }
-    },
-        2,
+            alpineService: {
+                Image: "alpine:latest",
+                Cmd: [
+                    "sh",
+                    "-c",
+                    'while sleep 3600; do :; done'
+                ]
+            }
+        },
+        4,
         {
             scalingFunction: createExecContainerSwarmScaling(1),
             readyFunction: singleContainerSwarmReady,
+            scalingInterval: 250
         }
     );
     dockerContainerSwarm.start();
@@ -126,34 +127,18 @@ test("Scale a DockerContainerSwarm by exec", async () => {
     const sleepCmd = [
         "sh",
         "-c",
-        'sleep 5'
+        'sleep 25'
     ];
  
-    let jobCount = 0;
-    const runCmdOnSwarm = async (expectedContainerCount: number) => {
-        dockerContainerSwarm.runOnSwarm(sleepCmd);
-        jobCount++;
-        expect(await waitForTotalExecLoad(dockerContainerSwarm, jobCount)).toBe(jobCount);
-        expect(await dockerContainerSwarm.getContainers()).toHaveLength(expectedContainerCount);
-    }
+    dockerContainerSwarm.runOnSwarm(sleepCmd);
+    expect(await waitForTotalExecLoad(dockerContainerSwarm, 1)).toBe(1);
+    expect(await dockerContainerSwarm.getContainers()).toHaveLength(2);
 
-    await runCmdOnSwarm(1);
-    await runCmdOnSwarm(2);
-    await runCmdOnSwarm(2);
-    await runCmdOnSwarm(2);
+    dockerContainerSwarm.runOnSwarm(sleepCmd);
+    expect(await waitForTotalExecLoad(dockerContainerSwarm, 2)).toBe(2);
+    expect(await dockerContainerSwarm.getContainers()).toHaveLength(3);
 
-    const execLoad = await dockerContainerSwarm.getExecLoad();
-    const loadArr = Array.from(execLoad.entries());
-    const containerCount = Array.from(execLoad.keys()).length;
-    const errorTolerance = jobCount * 0.1;
-    const lowThreshold = Math.ceil((jobCount / containerCount) - errorTolerance);
-    const highThreshold = Math.ceil((jobCount / containerCount) + errorTolerance);
-    for (const [containerId, load] of loadArr) {
-        expect(load).toBeGreaterThanOrEqual(lowThreshold);
-        expect(load).toBeLessThanOrEqual(highThreshold);
-    }
-    
-    await setTimeout(7 * 1000);
+    await setTimeout(25 * 1000);
     expect(await waitForTotalExecLoad(dockerContainerSwarm, 0)).toBe(0);
     expect(await dockerContainerSwarm.getContainers()).toHaveLength(1);
 
